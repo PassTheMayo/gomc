@@ -494,7 +494,7 @@ Everything a server needs to match vanilla Minecraft: Java Edition, grouped by a
   - [ ] **`/item`**
   - [ ] **`/kick`**
   - [ ] **`/kill`**
-  - [ ] **`/list`**
+  - [x] **`/list`**
   - [ ] **`/locate`**
   - [ ] **`/loot`**
   - [ ] **`/me`**

@@ -12,6 +12,7 @@ const (
 	Red    = "red"
 	Yellow = "yellow"
 	Green  = "green"
+	Gray   = "gray"
 )
 
 // Component is a piece of formatted chat text, either literal or translatable.

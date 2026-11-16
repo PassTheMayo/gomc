@@ -562,6 +562,17 @@ func encryptPKCS1(pub *rsa.PublicKey, data []byte) ([]byte, error) {
 	return rsa.EncryptPKCS1v15(rand.Reader, pub, data)
 }
 
+// rootCommand finds a top-level command in a command tree.
+func rootCommand(tree *packet.Commands, name string) (packet.CommandNode, bool) {
+	for _, child := range tree.Nodes[tree.Root].Children {
+		if tree.Nodes[child].Name == name {
+			return tree.Nodes[child], true
+		}
+	}
+
+	return packet.CommandNode{}, false
+}
+
 func TestPregenCommand(t *testing.T) {
 	conf := testConfig(t.TempDir())
 	conf.Operators = []string{"alice"}
@@ -570,18 +581,15 @@ func TestPregenCommand(t *testing.T) {
 	a := dial(t, addr)
 	a.login("Alice")
 
-	tree := waitFor[*packet.Commands](a, nil)
-	pregen := tree.Nodes[tree.Nodes[tree.Root].Children[0]]
-
-	if pregen.Name != "pregen" || !pregen.Restricted {
-		t.Fatalf("operators must see /pregen, got %+v", tree.Nodes)
+	if pregen, ok := rootCommand(waitFor[*packet.Commands](a, nil), "pregen"); !ok || !pregen.Restricted {
+		t.Fatalf("operators must see /pregen as restricted, got %+v", pregen)
 	}
 
 	b := dial(t, addr)
 	b.login("Bob")
 
-	if tree := waitFor[*packet.Commands](b, nil); len(tree.Nodes) != 1 {
-		t.Fatalf("non-operators must not see /pregen, got %+v", tree.Nodes)
+	if _, ok := rootCommand(waitFor[*packet.Commands](b, nil), "pregen"); ok {
+		t.Fatal("non-operators must not see /pregen")
 	}
 
 	b.send(&packet.ChatCommand{Command: "pregen 2"})
@@ -969,5 +977,38 @@ func TestServerIconAndLinks(t *testing.T) {
 
 	if data := waitFor[*packet.ServerData](a, nil); data.Motd.Text != "Test server" || !bytes.Equal(data.Icon, icon) {
 		t.Fatalf("server data was %q with a %d byte icon", data.Motd.Text, len(data.Icon))
+	}
+}
+
+func TestListCommand(t *testing.T) {
+	_, addr := startServer(t, testConfig(t.TempDir()))
+
+	a := dial(t, addr)
+	a.login("Alice")
+	waitFor[*packet.PlayerPosition](a, nil)
+
+	b := dial(t, addr)
+	bob := b.login("Bob").EntityID
+	waitFor[*packet.AddEntity](a, func(p *packet.AddEntity) bool { return p.EntityID == bob })
+
+	if _, ok := rootCommand(waitFor[*packet.Commands](b, nil), "list"); !ok {
+		t.Fatal("non-operators must see /list")
+	}
+
+	isList := func(p *packet.SystemChat) bool { return p.Content.Translate == "commands.list.players" }
+
+	// Anyone may list the players, in the order they joined.
+	a.send(&packet.ChatCommand{Command: "list"})
+	list := waitFor[*packet.SystemChat](a, isList).Content
+
+	if len(list.With) != 3 || list.With[0].Text != "2" || list.With[1].Text != "10" || list.With[2].PlainText() != "Alice, Bob" {
+		t.Fatalf("/list replied %+v", list)
+	}
+
+	a.send(&packet.ChatCommand{Command: "list uuids"})
+	names := waitFor[*packet.SystemChat](a, isList).Content.With[2].Extra
+
+	if len(names) != 3 || names[0].Translate != "commands.list.nameAndId" || names[0].With[1].Text != uuid.OfflinePlayer("Alice").String() {
+		t.Fatalf("/list uuids replied %+v", names)
 	}
 }
