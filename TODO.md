@@ -195,7 +195,7 @@ Everything a server needs to match vanilla Minecraft: Java Edition, grouped by a
 - [ ] **Adventure mode rules**: blocks may only be broken or placed as items allow
 - [ ] **Beds**: sleeping, setting spawn and exploding outside the overworld
 - [ ] **Breathing**: air supply underwater, drowning and water breathing
-- [ ] **Changing game modes**: switching game modes in play and updating abilities
+- [x] **Changing game modes**: switching game modes in play and updating abilities
 - [ ] **Death**: death messages, dropped inventory and the death screen
 - [ ] **Experience**: levels, orbs and experience from blocks, mobs and trading
 - [x] **Game modes**: survival, creative, adventure or spectator from the configuration
@@ -487,7 +487,7 @@ Everything a server needs to match vanilla Minecraft: Java Edition, grouped by a
   - [ ] **`/experience` and `/xp`**
   - [ ] **`/fill` and `/fillbiome`**
   - [ ] **`/forceload`**
-  - [ ] **`/gamemode`**
+  - [x] **`/gamemode`**
   - [ ] **`/gamerule`**
   - [ ] **`/give`**
   - [ ] **`/help`**

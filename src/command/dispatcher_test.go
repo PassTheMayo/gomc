@@ -148,3 +148,41 @@ func TestCustomArgument(t *testing.T) {
 		t.Fatalf("message parsed as %q", got)
 	}
 }
+
+func TestGameModeAndPlayersArguments(t *testing.T) {
+	var mode int32
+	var target string
+	d := &Dispatcher{}
+	d.Register(Literal("gamemode", GameMode("gamemode", Players("target").Executes(func(ctx *Context) {
+		mode, target = ctx.GameMode("gamemode"), ctx.String("target")
+	}))), true)
+
+	op := &testSource{operator: true}
+	d.Execute(op, "gamemode spectator Alice")
+
+	if mode != packet.GameModeSpectator || target != "Alice" || len(op.replies) != 0 {
+		t.Fatalf("parsed mode %d and target %q with replies %+v", mode, target, op.replies)
+	}
+
+	errors := map[string]string{
+		"gamemode flying Alice": "argument.gamemode.invalid",
+		"gamemode creative @a":  "argument.entity.selector.not_allowed",
+	}
+
+	for line, key := range errors {
+		src := &testSource{operator: true}
+		d.Execute(src, line)
+
+		if len(src.replies) != 1 || src.replies[0].Translate != key {
+			t.Errorf("%q replied %+v, want %s", line, src.replies, key)
+		}
+	}
+
+	tree := d.Tree(op)
+	gameMode := tree.Nodes[tree.Nodes[tree.Nodes[tree.Root].Children[0]].Children[0]]
+	players := tree.Nodes[gameMode.Children[0]]
+
+	if gameMode.Parser != packet.ParserGameMode || players.Parser != packet.ParserEntity || !bytes.Equal(players.Properties, []byte{packet.EntityPlayersOnly}) {
+		t.Fatalf("unexpected argument nodes %+v and %+v", gameMode, players)
+	}
+}

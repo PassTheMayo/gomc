@@ -21,3 +21,14 @@ type Context struct {
 func (c *Context) Int(name string) int32 {
 	return c.values[name].(int32)
 }
+
+// GameMode returns the ID of the game mode argument called name.
+func (c *Context) GameMode(name string) int32 {
+	return c.values[name].(int32)
+}
+
+// String returns the value of the text argument called name, such as a
+// player's name.
+func (c *Context) String(name string) string {
+	return c.values[name].(string)
+}

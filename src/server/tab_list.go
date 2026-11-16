@@ -31,5 +31,5 @@ func (s *Server) registerTabList() {
 }
 
 func (p *Player) infoEntry(snap snapshot) packet.PlayerInfoEntry {
-	return packet.PlayerInfoEntry{Profile: p.Profile, GameMode: p.GameMode, Listed: true, Latency: snap.Latency}
+	return packet.PlayerInfoEntry{Profile: p.Profile, GameMode: p.GameMode(), Listed: true, Latency: snap.Latency}
 }

@@ -24,7 +24,9 @@ var (
 
 // canEditBlocks reports whether the player's game mode lets it change blocks.
 func (p *Player) canEditBlocks() bool {
-	return p.GameMode == packet.GameModeSurvival || p.GameMode == packet.GameModeCreative
+	mode := p.GameMode()
+
+	return mode == packet.GameModeSurvival || mode == packet.GameModeCreative
 }
 
 // inReach reports whether the player can reach the center of a block.
@@ -65,8 +67,8 @@ func (s *Server) handleDigging(p *Player, pk *packet.PlayerAction) {
 	switch {
 	case !loaded || !p.canEditBlocks() || !p.snapshot().inReach(pk.Pos):
 		return
-	case pk.Action == packet.ActionStopDestroyBlock && p.GameMode == packet.GameModeSurvival:
-	case pk.Action == packet.ActionStartDestroyBlock && (p.GameMode == packet.GameModeCreative || breaksInstantly(current)):
+	case pk.Action == packet.ActionStopDestroyBlock && p.GameMode() == packet.GameModeSurvival:
+	case pk.Action == packet.ActionStartDestroyBlock && (p.GameMode() == packet.GameModeCreative || breaksInstantly(current)):
 	default:
 		return
 	}

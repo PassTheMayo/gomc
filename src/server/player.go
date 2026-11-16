@@ -20,8 +20,8 @@ type Player struct {
 	session  *session
 	Profile  profile.GameProfile
 	EntityID int32
-	GameMode int32
 	operator bool
+	gameMode atomic.Int32
 	joined   atomic.Bool
 	chunks   *chunkView
 
@@ -81,6 +81,11 @@ func (p *Player) savedData() storage.PlayerData {
 		X: p.x, Y: p.y, Z: p.z, Yaw: p.yaw, Pitch: p.pitch,
 		HeldSlot: p.inventory.Selected(), Inventory: p.inventory.Save(),
 	}
+}
+
+// GameMode returns the player's game mode.
+func (p *Player) GameMode() int32 {
+	return p.gameMode.Load()
 }
 
 func (p *Player) Send(pk packet.Packet) {

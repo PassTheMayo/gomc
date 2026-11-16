@@ -67,18 +67,10 @@ type Server struct {
 	conns   map[*session]struct{}
 }
 
-// GameModes maps configuration names to game mode IDs.
-var GameModes = map[string]int32{
-	"survival":  packet.GameModeSurvival,
-	"creative":  packet.GameModeCreative,
-	"adventure": packet.GameModeAdventure,
-	"spectator": packet.GameModeSpectator,
-}
-
 // New prepares a server from its configuration: it opens the world, picks the
 // spawn point and, in online mode, generates the RSA key pair.
 func New(conf *config.Config, log *slog.Logger) (*Server, error) {
-	gameMode, ok := GameModes[conf.GameMode]
+	gameMode, ok := packet.ParseGameMode(conf.GameMode)
 
 	if !ok {
 		return nil, fmt.Errorf("server: unknown game mode %q", conf.GameMode)
@@ -185,6 +177,7 @@ func (s *Server) registerFeatures() {
 		s.registerChunkStreaming,
 		s.registerBuilding,
 		s.registerArmSwing,
+		s.registerGameModeCommand,
 		s.registerListCommand,
 		s.registerPregen,
 		s.registerAutosave,
@@ -336,6 +329,18 @@ func (s *Server) onlinePlayers() []*Player {
 	}
 
 	return out
+}
+
+// playerByName returns the joined player with a name, ignoring case like
+// vanilla, or nil if there is none.
+func (s *Server) playerByName(name string) *Player {
+	for _, p := range s.joinedPlayers() {
+		if strings.EqualFold(p.Profile.Name, name) {
+			return p
+		}
+	}
+
+	return nil
 }
 
 // viewers returns the joined players whose view includes a chunk.

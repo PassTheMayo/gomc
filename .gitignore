@@ -1,4 +1,4 @@
 config.yml
 .DS_Store
 bin/
-world/
+/world/

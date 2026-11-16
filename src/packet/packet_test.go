@@ -98,9 +98,16 @@ func TestRoundTrip(t *testing.T) {
 				{Type: NodeArgument, Name: "radius", Executable: true, Parser: ParserInteger, Properties: IntegerProperties(1, math.MaxInt32)},
 				{Type: NodeArgument, Name: "any", Executable: true, Parser: ParserInteger, Properties: IntegerProperties(math.MinInt32, 5)},
 			}},
+			&Commands{Root: 0, Nodes: []CommandNode{
+				{Type: NodeRoot, Children: []int32{1}},
+				{Type: NodeLiteral, Name: "gamemode", Restricted: true, Children: []int32{2}},
+				{Type: NodeArgument, Name: "gamemode", Executable: true, Parser: ParserGameMode, Children: []int32{3}},
+				{Type: NodeArgument, Name: "target", Executable: true, Parser: ParserEntity, Properties: []byte{EntityPlayersOnly}},
+			}},
 			&EntityPositionSync{EntityID: 9, X: 1, Y: 2, Z: 3, Yaw: 33.3, Pitch: -12, OnGround: true},
 			&ForgetLevelChunk{X: -5, Z: 12},
 			&GameEvent{Event: GameEventLevelChunksLoadStart},
+			&GameEvent{Event: GameEventChangeGameMode, Value: float32(GameModeSpectator)},
 			&LevelChunkWithLight{
 				X: 3, Z: -4,
 				Heightmaps: []Heightmap{{Type: HeightmapMotionBlocking, Data: []uint64{1, 2, 3}}},
@@ -122,6 +129,7 @@ func TestRoundTrip(t *testing.T) {
 			&MoveEntityPos{EntityID: 9, DX: -4096, DY: 1, DZ: 32767, OnGround: true},
 			&MoveEntityPosRot{EntityID: 9, DX: 1, DY: -1, DZ: 0, Yaw: 45, Pitch: 90},
 			&MoveEntityRot{EntityID: 9, Yaw: -90, Pitch: 45, OnGround: true},
+			&PlayerAbilitiesUpdate{Flags: AbilityInvulnerable | AbilityCanFly | AbilityInstabuild, FlyingSpeed: DefaultFlyingSpeed, WalkingSpeed: DefaultWalkingSpeed},
 			&PlayerInfoRemove{UUIDs: []uuid.UUID{id}},
 			&PlayerInfoUpdate{Actions: 0xFF &^ InfoInitializeChat, Entries: []PlayerInfoEntry{
 				{Profile: prof, GameMode: 1, Listed: true, Latency: 50, DisplayName: &name, ListOrder: 2, ShowHat: true},

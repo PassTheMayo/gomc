@@ -93,6 +93,7 @@ var (
 		0x36: (*MoveEntityPos)(nil),
 		0x37: (*MoveEntityPosRot)(nil),
 		0x39: (*MoveEntityRot)(nil),
+		0x41: (*PlayerAbilitiesUpdate)(nil),
 		0x46: (*PlayerInfoRemove)(nil),
 		0x47: (*PlayerInfoUpdate)(nil),
 		0x49: (*PlayerPosition)(nil),

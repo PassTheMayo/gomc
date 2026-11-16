@@ -43,7 +43,7 @@ func (s *Server) registerInventory() {
 	on(r, s.handlePickItemFromBlock)
 
 	on(r, func(p *Player, pk *packet.PlayerAction) {
-		if p.GameMode == packet.GameModeSpectator {
+		if p.GameMode() == packet.GameModeSpectator {
 			return
 		}
 
@@ -84,7 +84,7 @@ func (p *Player) sendSlots(slots []int) {
 // setCreativeSlot records a stack the player put in a menu slot from the
 // creative inventory.
 func (p *Player) setCreativeSlot(slot int, stack item.Stack) {
-	if p.GameMode != packet.GameModeCreative || stack.Count > maxStackSize {
+	if p.GameMode() != packet.GameModeCreative || stack.Count > maxStackSize {
 		return
 	}
 
@@ -136,7 +136,7 @@ func (s *Server) handlePickItemFromBlock(p *Player, pk *packet.PickItemFromBlock
 	}
 
 	p.mu.Lock()
-	changed := p.inventory.Pick(item.Of(id, 1), p.GameMode == packet.GameModeCreative)
+	changed := p.inventory.Pick(item.Of(id, 1), p.GameMode() == packet.GameModeCreative)
 	held := p.inventory.Selected()
 	p.mu.Unlock()
 

@@ -364,8 +364,14 @@ type PlayerInput struct {
 func (p *PlayerInput) Encode(w *protocol.Writer) { w.UByte(p.Flags) }
 func (p *PlayerInput) Decode(r *protocol.Reader) { p.Flags = r.UByte() }
 
-// AbilityFlying is set in PlayerAbilities.Flags while the player flies.
-const AbilityFlying uint8 = 0x02
+// Ability flags in PlayerAbilities and PlayerAbilitiesUpdate. Clients only
+// report AbilityFlying.
+const (
+	AbilityInvulnerable uint8 = 0x01
+	AbilityFlying       uint8 = 0x02
+	AbilityCanFly       uint8 = 0x04
+	AbilityInstabuild   uint8 = 0x08
+)
 
 // PlayerAbilities reports that the player started or stopped flying.
 type PlayerAbilities struct {
@@ -374,6 +380,32 @@ type PlayerAbilities struct {
 
 func (p *PlayerAbilities) Encode(w *protocol.Writer) { w.UByte(p.Flags) }
 func (p *PlayerAbilities) Decode(r *protocol.Reader) { p.Flags = r.UByte() }
+
+// Vanilla movement speeds sent in PlayerAbilitiesUpdate.
+const (
+	DefaultFlyingSpeed  float32 = 0.05
+	DefaultWalkingSpeed float32 = 0.1
+)
+
+// PlayerAbilitiesUpdate tells the client what the player may do and how fast
+// it moves.
+type PlayerAbilitiesUpdate struct {
+	Flags        uint8
+	FlyingSpeed  float32
+	WalkingSpeed float32
+}
+
+func (p *PlayerAbilitiesUpdate) Encode(w *protocol.Writer) {
+	w.UByte(p.Flags)
+	w.Float(p.FlyingSpeed)
+	w.Float(p.WalkingSpeed)
+}
+
+func (p *PlayerAbilitiesUpdate) Decode(r *protocol.Reader) {
+	p.Flags = r.UByte()
+	p.FlyingSpeed = r.Float()
+	p.WalkingSpeed = r.Float()
+}
 
 // PlayerLoaded signals that the client finished loading the world.
 type PlayerLoaded struct{}

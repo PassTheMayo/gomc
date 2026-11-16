@@ -92,9 +92,13 @@ Commands tab-complete in the chat box like vanilla commands.
 
 | Command | Who can use it | What it does |
 | --- | --- | --- |
+| `/gamemode <mode>` | Operators | Switches you to survival, creative, adventure or spectator |
+| `/gamemode <mode> <player>` | Operators | Switches another player's game mode |
 | `/list` | Everyone | Shows who is online |
 | `/list uuids` | Everyone | Shows who is online, with each player's UUID |
 | `/pregen <radius>` | Operators | Generates the world ahead of time for `radius` chunks around you, so exploring it later is faster |
 | `/pregen cancel` | Operators | Stops a running pre-generation |
+
+Game mode changes last until the player leaves; players always join in the configured `game_mode`.
 
 Pre-generation runs in the background and shows its progress above your hotbar.

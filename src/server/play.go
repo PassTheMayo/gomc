@@ -63,7 +63,6 @@ func (s *Server) newPlayer(sess *session) *Player {
 		session:   sess,
 		Profile:   sess.profile,
 		EntityID:  s.nextEntityID.Add(1),
-		GameMode:  s.gameMode,
 		operator:  s.isOperator(sess.profile.Name),
 		x:         saved.X,
 		y:         saved.Y,
@@ -73,6 +72,7 @@ func (s *Server) newPlayer(sess *session) *Player {
 		inventory: inventory.NewPlayer(),
 	}
 
+	p.gameMode.Store(s.gameMode)
 	p.inventory.Load(saved.HeldSlot, saved.Inventory)
 
 	radius := max(2, min(int(sess.clientInfo.ViewDistance), s.conf.ViewDistance))
@@ -109,7 +109,7 @@ func (s *Server) join(p *Player) {
 			DimensionType:    registry.MustGet(registry.DimensionType).MustID(s.world.Dim.Type),
 			Dimension:        s.world.Dim.Name,
 			HashedSeed:       s.hashedSeed,
-			GameMode:         p.GameMode,
+			GameMode:         p.GameMode(),
 			PreviousGameMode: -1,
 			Flat:             s.level.Generator == worldgen.NameFlat,
 			SeaLevel:         int32(s.world.Dim.SeaLevel),

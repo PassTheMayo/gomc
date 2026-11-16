@@ -1012,3 +1012,79 @@ func TestListCommand(t *testing.T) {
 		t.Fatalf("/list uuids replied %+v", names)
 	}
 }
+
+func TestGameModeCommand(t *testing.T) {
+	conf := testConfig(t.TempDir())
+	conf.Operators = []string{"alice"}
+	srv, addr := startServer(t, conf)
+
+	a := dial(t, addr)
+	a.login("Alice")
+
+	if gameMode, ok := rootCommand(waitFor[*packet.Commands](a, nil), "gamemode"); !ok || !gameMode.Restricted {
+		t.Fatalf("operators must see /gamemode as restricted, got %+v", gameMode)
+	}
+
+	b := dial(t, addr)
+	bob := b.login("Bob").EntityID
+	waitFor[*packet.AddEntity](a, func(p *packet.AddEntity) bool { return p.EntityID == bob })
+
+	isChat := func(key string) func(*packet.SystemChat) bool {
+		return func(p *packet.SystemChat) bool { return p.Content.Translate == key }
+	}
+
+	isGameModeChange := func(p *packet.GameEvent) bool { return p.Event == packet.GameEventChangeGameMode }
+
+	// Changing your own game mode updates your abilities and everyone's tab
+	// list.
+	a.send(&packet.ChatCommand{Command: "gamemode survival"})
+
+	if event := waitFor[*packet.GameEvent](a, isGameModeChange); event.Value != float32(packet.GameModeSurvival) {
+		t.Fatalf("switched the client to game mode %v", event.Value)
+	}
+
+	if abilities := waitFor[*packet.PlayerAbilitiesUpdate](a, nil); abilities.Flags != 0 || abilities.WalkingSpeed != packet.DefaultWalkingSpeed {
+		t.Fatalf("survival players got abilities %+v", abilities)
+	}
+
+	if self := waitFor[*packet.SystemChat](a, isChat("commands.gamemode.success.self")).Content; self.With[0].Translate != "gameMode.survival" {
+		t.Fatalf("/gamemode replied %+v", self)
+	}
+
+	entry := waitFor[*packet.PlayerInfoUpdate](b, func(p *packet.PlayerInfoUpdate) bool { return p.Actions == packet.InfoUpdateGameMode }).Entries[0]
+
+	if entry.Profile.ID != uuid.OfflinePlayer("Alice") || entry.GameMode != packet.GameModeSurvival {
+		t.Fatalf("tab list entry %+v", entry)
+	}
+
+	// Switching to the current game mode does nothing, so the next reply is
+	// from changing Bob's game mode, found by name in any case.
+	a.send(&packet.ChatCommand{Command: "gamemode survival"})
+	a.send(&packet.ChatCommand{Command: "gamemode spectator bob"})
+
+	other := waitFor[*packet.SystemChat](a, func(p *packet.SystemChat) bool { return p.Content.Translate != "multiplayer.player.joined" }).Content
+
+	if other.Translate != "commands.gamemode.success.other" || other.With[0].Text != "Bob" || other.With[1].Translate != "gameMode.spectator" {
+		t.Fatalf("/gamemode spectator bob replied %+v", other)
+	}
+
+	if event := waitFor[*packet.GameEvent](b, isGameModeChange); event.Value != float32(packet.GameModeSpectator) {
+		t.Fatalf("switched Bob's client to game mode %v", event.Value)
+	}
+
+	if abilities := waitFor[*packet.PlayerAbilitiesUpdate](b, nil); abilities.Flags != packet.AbilityInvulnerable|packet.AbilityCanFly|packet.AbilityFlying {
+		t.Fatalf("spectators got abilities %+v", abilities)
+	}
+
+	waitFor[*packet.SystemChat](b, isChat("gameMode.changed"))
+
+	if srv.playerByName("Bob").GameMode() != packet.GameModeSpectator {
+		t.Fatal("the server did not record Bob's game mode")
+	}
+
+	a.send(&packet.ChatCommand{Command: "gamemode creative Carol"})
+	waitFor[*packet.SystemChat](a, isChat("argument.entity.notfound.player"))
+
+	b.send(&packet.ChatCommand{Command: "gamemode creative"})
+	waitFor[*packet.SystemChat](b, isChat("command.unknown.command"))
+}

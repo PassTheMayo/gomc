@@ -1,6 +1,8 @@
 package packet
 
 import (
+	"slices"
+
 	"main/src/nbt"
 	"main/src/protocol"
 	"main/src/text"
@@ -13,6 +15,16 @@ const (
 	GameModeAdventure int32 = 2
 	GameModeSpectator int32 = 3
 )
+
+// GameModeNames holds the name of each game mode, indexed by its ID.
+var GameModeNames = [...]string{"survival", "creative", "adventure", "spectator"}
+
+// ParseGameMode returns the ID of the game mode called name.
+func ParseGameMode(name string) (int32, bool) {
+	id := slices.Index(GameModeNames[:], name)
+
+	return int32(id), id >= 0
+}
 
 // GlobalPos is a block position in a specific dimension.
 type GlobalPos struct {
@@ -145,9 +157,15 @@ func (p *SetDefaultSpawnPosition) Decode(r *protocol.Reader) {
 	p.Pitch = r.Float()
 }
 
-// GameEventLevelChunksLoadStart tells the client chunks are about to arrive so
-// it can leave the loading screen once its own chunk is present.
-const GameEventLevelChunksLoadStart uint8 = 13
+// Game events.
+const (
+	// GameEventChangeGameMode switches the player to the game mode in Value.
+	GameEventChangeGameMode uint8 = 3
+
+	// GameEventLevelChunksLoadStart tells the client chunks are about to
+	// arrive so it can leave the loading screen once its own chunk is present.
+	GameEventLevelChunksLoadStart uint8 = 13
+)
 
 // GameEvent signals a change in game state.
 type GameEvent struct {

@@ -31,13 +31,23 @@ const (
 	nodeRestricted  uint8 = 0x20
 )
 
-// ParserInteger is the ID of the brigadier:integer argument parser.
-const ParserInteger int32 = 3
+// Argument parser IDs from the minecraft:command_argument_type registry.
+const (
+	ParserInteger  int32 = 3
+	ParserEntity   int32 = 6
+	ParserGameMode int32 = 42
+)
 
 // Integer parser flags marking which bounds follow.
 const (
 	integerHasMin uint8 = 0x01
 	integerHasMax uint8 = 0x02
+)
+
+// Entity parser flags, the only property of an entity argument.
+const (
+	EntitySingle      uint8 = 0x01
+	EntityPlayersOnly uint8 = 0x02
 )
 
 var errUnsupportedNode = errors.New("packet: unsupported command node")
@@ -57,6 +67,8 @@ var parserProperties = map[int32]func(r *protocol.Reader){
 			r.Int()
 		}
 	},
+	ParserEntity:   func(r *protocol.Reader) { r.UByte() },
+	ParserGameMode: func(*protocol.Reader) {},
 }
 
 // IntegerProperties encodes the bounds of an integer argument. math.MinInt32
@@ -166,7 +178,10 @@ func (p *Commands) Decode(r *protocol.Reader) {
 
 			start := r.Unread()
 			readProperties(r)
-			n.Properties = start[:len(start)-len(r.Unread())]
+
+			if size := len(start) - len(r.Unread()); size > 0 {
+				n.Properties = start[:size]
+			}
 		}
 
 		return n

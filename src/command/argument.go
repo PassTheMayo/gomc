@@ -3,6 +3,7 @@ package command
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"main/src/packet"
 	"main/src/text"
@@ -53,4 +54,55 @@ func (a integerArgument) Parse(r *Reader) (any, *text.Component) {
 
 func (a integerArgument) Parser() (int32, []byte) {
 	return packet.ParserInteger, packet.IntegerProperties(a.min, a.max)
+}
+
+// gameModeArgument is the name of a game mode.
+type gameModeArgument struct{}
+
+// GameMode returns an argument node accepting a game mode name, readable from
+// the context with Context.GameMode.
+func GameMode(name string, children ...*Node) *Node {
+	return Arg(name, gameModeArgument{}, children...)
+}
+
+func (gameModeArgument) Parse(r *Reader) (any, *text.Component) {
+	word := r.ReadWord()
+
+	if mode, ok := packet.ParseGameMode(word); ok {
+		return mode, nil
+	}
+
+	msg := text.Translatable("argument.gamemode.invalid", text.Text(word))
+
+	return nil, &msg
+}
+
+func (gameModeArgument) Parser() (int32, []byte) {
+	return packet.ParserGameMode, nil
+}
+
+// playersArgument is a player's name. Target selectors are not supported yet.
+type playersArgument struct{}
+
+// Players returns an argument node accepting a player's name, readable from the
+// context with Context.String. Clients complete it like vanilla's player
+// targets.
+func Players(name string, children ...*Node) *Node {
+	return Arg(name, playersArgument{}, children...)
+}
+
+func (playersArgument) Parse(r *Reader) (any, *text.Component) {
+	word := r.ReadWord()
+
+	if strings.HasPrefix(word, "@") {
+		msg := text.Translatable("argument.entity.selector.not_allowed")
+
+		return nil, &msg
+	}
+
+	return word, nil
+}
+
+func (playersArgument) Parser() (int32, []byte) {
+	return packet.ParserEntity, []byte{packet.EntityPlayersOnly}
 }
