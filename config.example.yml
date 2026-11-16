@@ -1,0 +1,14 @@
+host: 0.0.0.0
+port: 25565
+motd: A Minecraft server written in Go
+max_players: 20
+online_mode: true
+compression_threshold: 256
+view_distance: 10
+simulation_distance: 10
+game_mode: creative
+operators: []
+world:
+  directory: world
+  seed: 0
+  generator: terrain

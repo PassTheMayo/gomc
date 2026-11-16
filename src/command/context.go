@@ -1,0 +1,23 @@
+package command
+
+import "main/src/text"
+
+// Source is whoever runs a command.
+type Source interface {
+	// Reply shows a message to the source.
+	Reply(msg text.Component)
+
+	// IsOperator reports whether the source may use restricted commands.
+	IsOperator() bool
+}
+
+// Context is a parsed command being executed.
+type Context struct {
+	Source Source
+	ints   map[string]int32
+}
+
+// Int returns the value of the integer argument called name.
+func (c *Context) Int(name string) int32 {
+	return c.ints[name]
+}
