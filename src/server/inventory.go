@@ -1,37 +1,33 @@
 package server
 
 import (
+	"time"
+
 	"main/src/block"
 	"main/src/item"
 	"main/src/packet"
 	"main/src/registry"
 )
 
-const (
-	// maxStackSize is the largest stack the max_stack_size component allows.
-	maxStackSize = 99
-
-	// inventoryStateID is sent as the inventory menu's revision. Clients only
-	// echo it in click packets, which the server ignores.
-	inventoryStateID = 0
-)
-
 var itemRegistry = registry.MustGet(registry.Item)
 
 // registerInventory tracks players' inventories and selected hotbar slots,
-// handles block picking, drops and swapping hands, and sends joining players
-// their inventory.
+// handles clicks in the inventory window, block picking, dropping items and
+// swapping hands, and sends joining players their inventory. Players leaving
+// put their cursor and crafting grid back, like closing the window.
 func (s *Server) registerInventory() {
 	r := &s.router
 
 	r.onJoin(func(p *Player) {
 		p.mu.Lock()
-		held, menu := p.inventory.Selected(), p.inventory.Menu()
+		held := p.inventory.Selected()
 		p.mu.Unlock()
 
 		p.Send(&packet.SetHeldSlot{Slot: int32(held)})
-		p.Send(&packet.ContainerSetContent{ContainerID: packet.InventoryContainer, StateID: inventoryStateID, Items: menu})
+		p.sendInventory()
 	})
+
+	r.onLeave(s.closeInventory)
 
 	on(r, func(p *Player, pk *packet.SetCarriedItem) {
 		p.mu.Lock()
@@ -39,8 +35,15 @@ func (s *Server) registerInventory() {
 		p.mu.Unlock()
 	})
 
-	on(r, func(p *Player, pk *packet.SetCreativeModeSlot) { p.setCreativeSlot(int(pk.Slot), pk.Stack) })
+	on(r, s.handleCreativeSlot)
 	on(r, s.handlePickItemFromBlock)
+	on(r, s.handleContainerClick)
+
+	on(r, func(p *Player, pk *packet.ContainerClose) {
+		if pk.ContainerID == packet.InventoryContainer {
+			s.closeInventory(p)
+		}
+	})
 
 	on(r, func(p *Player, pk *packet.PlayerAction) {
 		if p.GameMode() == packet.GameModeSpectator {
@@ -48,12 +51,13 @@ func (s *Server) registerInventory() {
 		}
 
 		switch pk.Action {
-		// The client already removed what the player dropped. Items aren't
-		// dropped into the world.
+		// The client already removed what the player dropped.
 		case packet.ActionDropItem, packet.ActionDropAllItems:
 			p.mu.Lock()
-			p.inventory.DropSelected(pk.Action == packet.ActionDropAllItems)
+			dropped := p.inventory.DropSelected(pk.Action == packet.ActionDropAllItems)
 			p.mu.Unlock()
+
+			s.dropFromPlayer(p, dropped)
 		// The client waits for the server to swap its hands.
 		case packet.ActionSwapWithOffHand:
 			p.mu.Lock()
@@ -65,26 +69,50 @@ func (s *Server) registerInventory() {
 	})
 }
 
+// sendInventory sends the client every slot of its inventory window and the
+// stack on its cursor.
+func (p *Player) sendInventory() {
+	p.mu.Lock()
+	pk := &packet.ContainerSetContent{
+		ContainerID: packet.InventoryContainer,
+		StateID:     p.inventory.NextRevision(),
+		Items:       p.inventory.Menu(),
+		Carried:     p.inventory.Carried(),
+	}
+	p.mu.Unlock()
+
+	p.Send(pk)
+}
+
 // sendSlots sends the client the current stacks of inventory menu slots.
 func (p *Player) sendSlots(slots []int) {
 	p.mu.Lock()
 	menu := p.inventory.Menu()
-	p.mu.Unlock()
+	packets := make([]*packet.ContainerSetSlot, len(slots))
 
-	for _, slot := range slots {
-		p.Send(&packet.ContainerSetSlot{
+	for i, slot := range slots {
+		packets[i] = &packet.ContainerSetSlot{
 			ContainerID: packet.InventoryContainer,
-			StateID:     inventoryStateID,
+			StateID:     p.inventory.NextRevision(),
 			Slot:        int16(slot),
 			Stack:       menu[slot],
-		})
+		}
+	}
+
+	p.mu.Unlock()
+
+	for _, pk := range packets {
+		p.Send(pk)
 	}
 }
 
-// setCreativeSlot records a stack the player put in a menu slot from the
-// creative inventory.
-func (p *Player) setCreativeSlot(slot int, stack item.Stack) {
-	if p.GameMode() != packet.GameModeCreative || stack.Count > maxStackSize {
+// handleCreativeSlot records a stack a creative player put in a menu slot,
+// or drops it when the slot is outside the window. Drops are throttled like
+// vanilla's to stop clients flooding the world with items.
+func (s *Server) handleCreativeSlot(p *Player, pk *packet.SetCreativeModeSlot) {
+	stack := pk.Stack
+
+	if p.GameMode() != packet.GameModeCreative || stack.Count > stack.MaxStackSize() {
 		return
 	}
 
@@ -93,8 +121,17 @@ func (p *Player) setCreativeSlot(slot int, stack item.Stack) {
 	}
 
 	p.mu.Lock()
-	p.inventory.SetMenuSlot(slot, stack)
+	drop := pk.Slot < 0 && !stack.IsEmpty() && p.dropThrottle.allow(time.Now())
+
+	if pk.Slot >= 0 {
+		p.inventory.SetMenuSlot(int(pk.Slot), stack)
+	}
+
 	p.mu.Unlock()
+
+	if drop {
+		s.dropFromPlayer(p, stack)
+	}
 }
 
 // heldStack returns the stack in a hand.

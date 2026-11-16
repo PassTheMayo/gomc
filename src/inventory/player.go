@@ -21,17 +21,22 @@ const (
 
 var itemRegistry = registry.MustGet(registry.Item)
 
-// Player is a player's inventory and selected hotbar slot. It isn't safe for
-// concurrent use.
+// Player is a player's inventory, selected hotbar slot and inventory window
+// with its crafting grid. It isn't safe for concurrent use.
 type Player struct {
 	slots    *Container
+	craft    *Container
 	selected int
+	menu     *menu
 }
 
 // NewPlayer returns an empty player inventory with the first hotbar slot
 // selected.
 func NewPlayer() *Player {
-	return &Player{slots: NewContainer(playerSize)}
+	p := &Player{slots: NewContainer(playerSize), craft: NewContainer(craftSize)}
+	p.menu = p.newMenu()
+
+	return p
 }
 
 // MenuSlot converts an inventory slot to its inventory menu slot. The menu
@@ -48,23 +53,6 @@ func MenuSlot(slot int) int {
 	default:
 		return 45
 	}
-}
-
-// slotOfMenu converts an inventory menu slot to an inventory slot. The
-// crafting grid isn't part of the inventory.
-func slotOfMenu(menu int) (int, bool) {
-	switch {
-	case menu >= 5 && menu <= 8:
-		return armorStart + 8 - menu, true
-	case menu >= 9 && menu <= 35:
-		return menu, true
-	case menu >= 36 && menu <= 44:
-		return menu - 36, true
-	case menu == 45:
-		return offHandSlot, true
-	}
-
-	return 0, false
 }
 
 // Selected returns the selected hotbar slot.
@@ -93,24 +81,24 @@ func (p *Player) OffHand() item.Stack {
 	return p.slots.Get(offHandSlot)
 }
 
-// SetMenuSlot puts a stack in the slot shown at an inventory menu slot and
-// reports whether that slot belongs to the inventory.
+// SetMenuSlot puts a stack in an inventory menu slot, from the crafting grid
+// to the off hand, and reports whether the slot exists.
 func (p *Player) SetMenuSlot(menu int, s item.Stack) bool {
-	slot, ok := slotOfMenu(menu)
-
-	if ok {
-		p.slots.Set(slot, s)
+	if menu < menuCraftStart || menu >= MenuSize {
+		return false
 	}
 
-	return ok
+	p.menu.slots[menu].set(s)
+
+	return true
 }
 
 // Menu returns the stacks of every inventory menu slot.
 func (p *Player) Menu() []item.Stack {
 	menu := make([]item.Stack, MenuSize)
 
-	for slot := range playerSize {
-		menu[MenuSlot(slot)] = p.slots.Get(slot)
+	for i, s := range p.menu.slots {
+		menu[i] = s.get()
 	}
 
 	return menu
@@ -124,16 +112,84 @@ func (p *Player) SwapHands() []int {
 	return []int{MenuSlot(p.selected), MenuSlot(offHandSlot)}
 }
 
-// DropSelected removes the whole selected stack, or one of its items.
-func (p *Player) DropSelected(all bool) {
+// DropSelected removes the whole selected stack, or one of its items, and
+// returns what it removed.
+func (p *Player) DropSelected(all bool) item.Stack {
 	s := p.slots.Get(p.selected)
-	s.Count--
+
+	if s.IsEmpty() {
+		return item.Stack{}
+	}
+
+	n := int32(1)
 
 	if all {
+		n = s.Count
+	}
+
+	p.slots.Set(p.selected, s.WithCount(s.Count-n))
+
+	return s.WithCount(n)
+}
+
+// Add puts a stack into the inventory like vanilla's Inventory.add: onto a
+// matching stack with room, trying the selected slot and the off hand first,
+// else into the first free slot, until it all fits or nothing more does.
+// Players with infinite materials lose what doesn't fit at all. It returns
+// what is left and the menu slots that changed.
+func (p *Player) Add(s item.Stack, infinite bool) (item.Stack, []int) {
+	var changed []int
+	original := s.Count
+
+	for !s.IsEmpty() {
+		slot := p.slotWithRoomFor(s)
+
+		if slot < 0 {
+			slot = p.slots.Find(0, itemSlots, isEmptySlot)
+		}
+
+		if slot < 0 {
+			break
+		}
+
+		current := p.slots.Get(slot)
+
+		if current.IsEmpty() {
+			current = s.WithCount(0)
+		}
+
+		n := min(s.Count, min(maxSlotStack, current.MaxStackSize())-current.Count)
+
+		if n <= 0 {
+			break
+		}
+
+		p.slots.Set(slot, current.WithCount(current.Count+n))
+		s.Count -= n
+		changed = append(changed, MenuSlot(slot))
+	}
+
+	if infinite && s.Count == original {
 		s.Count = 0
 	}
 
-	p.slots.Set(p.selected, s)
+	return s, changed
+}
+
+// slotWithRoomFor returns the slot holding a stack the given one can join,
+// or -1.
+func (p *Player) slotWithRoomFor(s item.Stack) int {
+	hasRoom := func(o item.Stack) bool {
+		return item.SameItemSameComponents(o, s) && o.IsStackable() && o.Count < min(maxSlotStack, o.MaxStackSize())
+	}
+
+	for _, slot := range []int{p.selected, offHandSlot} {
+		if hasRoom(p.slots.Get(slot)) {
+			return slot
+		}
+	}
+
+	return p.slots.Find(0, itemSlots, hasRoom)
 }
 
 // Pick moves a stack into the player's hand like vanilla's tryPickItem: a

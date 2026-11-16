@@ -57,6 +57,8 @@ var (
 		0x07: (*ChatCommand)(nil),
 		0x0B: (*ChunkBatchReceived)(nil),
 		0x0E: (*ClientInformation)(nil),
+		0x12: (*ContainerClick)(nil),
+		0x13: (*ContainerClose)(nil),
 		0x1C: (*KeepAlive)(nil),
 		0x1E: (*MovePlayerPos)(nil),
 		0x1F: (*MovePlayerPosRot)(nil),
@@ -101,11 +103,14 @@ var (
 		0x55: (*RotateHead)(nil),
 		0x58: (*ServerData)(nil),
 		0x60: (*SetChunkCacheCenter)(nil),
+		0x62: (*SetCursorItem)(nil),
 		0x63: (*SetDefaultSpawnPosition)(nil),
 		0x65: (*SetEntityData)(nil),
+		0x67: (*SetEntityMotion)(nil),
 		0x6B: (*SetHeldSlot)(nil),
 		0x73: (*SetTime)(nil),
 		0x7B: (*SwingAnimation)(nil),
 		0x7C: (*SystemChat)(nil),
+		0x7F: (*TakeItemEntity)(nil),
 	})
 )

@@ -2,6 +2,7 @@ package server
 
 import (
 	"main/src/block"
+	"main/src/item"
 	"main/src/packet"
 	"main/src/world"
 )
@@ -12,9 +13,11 @@ const (
 	// margin for latency.
 	maxReach = 7.0
 
-	eyeHeight    = 1.62
-	playerWidth  = 0.6
-	playerHeight = 1.8
+	eyeHeight          = 1.62
+	crouchingEyeHeight = 1.27
+	playerWidth        = 0.6
+	playerHeight       = 1.8
+	crouchingHeight    = 1.5
 )
 
 var (
@@ -73,7 +76,7 @@ func (s *Server) handleDigging(p *Player, pk *packet.PlayerAction) {
 		return
 	}
 
-	s.destroyBlock(pk.Pos, current)
+	s.destroyBlock(p, pk.Pos, current)
 }
 
 // breaksInstantly reports whether survival players break a block with one hit.
@@ -81,19 +84,34 @@ func breaksInstantly(s block.StateID) bool {
 	return !block.IsAir(s) && !block.IsSolid(s) && !block.HasFluid(s) && block.LightOpacity(s) == 0
 }
 
-// destroyBlock removes a block, leaving water behind if it was waterlogged,
-// along with the other half of two block objects like doors and beds.
-func (s *Server) destroyBlock(pos packet.BlockPos, current block.StateID) {
+// destroyBlock removes a block a player broke, leaving water behind if it was
+// waterlogged, along with the other half of two block objects like doors and
+// beds. Outside creative mode both drop their loot: the broken block's when
+// broken with a tool that harvests it, rolled before it is removed so tall
+// plants still see their other half, and the other half's as if destroyed
+// without a tool.
+func (s *Server) destroyBlock(p *Player, pos packet.BlockPos, current block.StateID) {
 	if block.IsAir(current) {
 		return
+	}
+
+	drops := p.GameMode() != packet.GameModeCreative
+
+	if tool := p.heldStack(packet.HandMain); drops && harvests(tool, current) {
+		s.dropBlockLoot(pos, current, tool, true)
 	}
 
 	s.world.SetBlock(int(pos.X), int(pos.Y), int(pos.Z), removedState(current))
 
 	if dx, dy, dz, ok := block.LinkedPart(current); ok {
-		x, y, z := int(pos.X)+dx, int(pos.Y)+dy, int(pos.Z)+dz
+		otherPos := packet.BlockPos{X: pos.X + int32(dx), Y: pos.Y + int32(dy), Z: pos.Z + int32(dz)}
+		x, y, z := int(otherPos.X), int(otherPos.Y), int(otherPos.Z)
 
 		if other, loaded := s.world.Block(x, y, z); loaded && block.ByState(other) == block.ByState(current) {
+			if drops {
+				s.dropBlockLoot(otherPos, other, item.Stack{}, false)
+			}
+
 			s.world.SetBlock(x, y, z, removedState(other))
 		}
 	}

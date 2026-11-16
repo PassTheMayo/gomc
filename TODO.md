@@ -241,7 +241,7 @@ Everything a server needs to match vanilla Minecraft: Java Edition, grouped by a
 - [ ] **Equipment**: held items and armor visible to other players
 - [ ] **Experience orbs**: spawning, merging and attraction to players
 - [ ] **Falling blocks**: sand, gravel, anvils and pointed dripstone
-- [ ] **Item entities**: dropped items, merging, despawning and pickup
+- [x] **Item entities**: dropped items, merging, despawning and pickup
 - [ ] **Other entities**: area effect clouds, evoker fangs, fireworks, fishing bobbers, eyes of ender, lightning and markers
 - [x] **Player entities**: spawned for players within view distance and removed outside it
 - [ ] **Primed TNT**: fuse and explosion
@@ -293,14 +293,14 @@ Everything a server needs to match vanilla Minecraft: Java Edition, grouped by a
 - [ ] **Bundles**: storing items inside bundles
 - [ ] **Container menus**: chests, barrels, shulker boxes, hoppers, dispensers and other containers
 - [x] **Creative inventory**: slots set from the creative inventory are tracked, with item components
-- [ ] **Cursor item**: the item held on the cursor
+- [x] **Cursor item**: the item held on the cursor
 - [ ] **Double chests**: two chests combining into one inventory
-- [x] **Dropping with the drop key**: removes one item or the whole stack from the server's copy
+- [x] **Dropping with the drop key**: throws one item or the whole stack
 - [ ] **Ender chests**: per-player storage
 - [x] **Hotbar selection**: the selected slot is tracked and restored on join
 - [x] **Inventory sync on join**: the saved inventory is sent to the client
-- [ ] **Item drops**: dropped items appear in the world
-- [ ] **Item pickup**: collecting nearby items
+- [x] **Item drops**: dropped items appear in the world
+- [x] **Item pickup**: collecting nearby items
 - [x] **Off-hand swapping**: the swap key moves items between hands
 - [x] **Picking blocks**: middle-click follows vanilla
   - [x] **Creative picking**: creative players get the item when they don't have it
@@ -310,7 +310,7 @@ Everything a server needs to match vanilla Minecraft: Java Edition, grouped by a
   - [x] **Swapping**: a matching stack in the main inventory is swapped into the hotbar
 - [ ] **Picking entities**: middle-clicking entities gives their spawn egg or item
 - [ ] **Picking with data**: Ctrl+middle-click copies block entity data
-- [ ] **Survival inventory clicks**: picking up, placing, quick moving, swapping, cloning, throwing and dragging
+- [x] **Survival inventory clicks**: picking up, placing, quick moving, swapping, cloning, throwing and dragging
 
 ## Items
 
@@ -366,6 +366,9 @@ Everything a server needs to match vanilla Minecraft: Java Edition, grouped by a
 - [ ] **Creative weapon rule**: swords, tridents and maces can't break blocks in creative
 - [ ] **Dig speed validation**: digging times checked against tools and effects
 - [ ] **Drops**: loot tables, silk touch, fortune and experience
+  - [x] **Block loot tables**: vanilla's tables, with silk touch, shears and fortune
+  - [x] **Correct tools**: blocks like stone and ores drop nothing without the right tool
+  - [ ] **Experience**: experience from ores and other blocks
 - [x] **Instant-break blocks**: plants and similar blocks break on the first hit in survival
 - [x] **Survival breaking**: when the client finishes digging
 - [x] **Two-block objects**: breaking either half removes both

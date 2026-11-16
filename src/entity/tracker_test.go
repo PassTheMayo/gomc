@@ -53,7 +53,7 @@ func TestTracker(t *testing.T) {
 		t.Fatalf("moving sent %#v", sent[0])
 	}
 
-	if data, ok := sent[1].(*packet.SetEntityData); !ok || data.Values[0] != sneaking {
+	if data, ok := sent[1].(*packet.SetEntityData); !ok || !data.Values[0].Equal(sneaking) {
 		t.Fatalf("metadata change sent %#v", sent[1])
 	}
 

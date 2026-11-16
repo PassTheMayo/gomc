@@ -40,6 +40,7 @@ type Player struct {
 	keepAliveID      int64
 	keepAliveSent    time.Time
 	inventory        *inventory.Player
+	dropThrottle     throttle
 	swing            entity.Swing
 }
 

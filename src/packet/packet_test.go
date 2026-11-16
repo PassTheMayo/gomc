@@ -82,6 +82,12 @@ func TestRoundTrip(t *testing.T) {
 			&SetCarriedItem{Slot: 8},
 			&SetCreativeModeSlot{Slot: 36, Stack: item.Stack{Count: 64, Item: 1, Components: []item.Component{{Type: 5, Data: []byte{1, 2}}}, Removed: []int32{7}}},
 			&SetCreativeModeSlot{Slot: 45},
+			&ContainerClick{
+				StateID: 7, Slot: 36, Button: 1, Mode: ClickPickup,
+				Changed: []ChangedSlot{{Slot: 36, Stack: HashedStack{Item: 1, Count: 5, Components: []HashedComponent{{Type: 3, Hash: -9}}, Removed: []int32{4}}}, {Slot: 9}},
+				Carried: HashedStack{Item: 1, Count: 59},
+			},
+			&ContainerClose{ContainerID: 0},
 			&PickItemFromBlock{Pos: BlockPos{X: -7, Y: 80, Z: 12}, IncludeData: true},
 		},
 		PlayClientbound: {
@@ -131,6 +137,10 @@ func TestRoundTrip(t *testing.T) {
 			&MoveEntityRot{EntityID: 9, Yaw: -90, Pitch: 45, OnGround: true},
 			&PlayerAbilitiesUpdate{Flags: AbilityInvulnerable | AbilityCanFly | AbilityInstabuild, FlyingSpeed: DefaultFlyingSpeed, WalkingSpeed: DefaultWalkingSpeed},
 			&PlayerInfoRemove{UUIDs: []uuid.UUID{id}},
+			&SetCursorItem{Stack: item.Stack{Count: 3, Item: 2}},
+			&SetEntityMotion{EntityID: 9, VX: 1, VY: -1},
+			&SetEntityData{EntityID: 9, Values: []EntityDataValue{{Index: DataItem, Type: DataTypeItemStack, Item: item.Stack{Count: 2, Item: 5}}}},
+			&TakeItemEntity{ItemID: 9, CollectorID: 1, Amount: 64},
 			&PlayerInfoUpdate{Actions: 0xFF &^ InfoInitializeChat, Entries: []PlayerInfoEntry{
 				{Profile: prof, GameMode: 1, Listed: true, Latency: 50, DisplayName: &name, ListOrder: 2, ShowHat: true},
 			}},

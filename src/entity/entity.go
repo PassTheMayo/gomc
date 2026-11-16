@@ -30,6 +30,14 @@ type State struct {
 	HeadYaw    float32
 	OnGround   bool
 
+	// VX, VY and VZ are the velocity clients start the entity with and
+	// simulate it from, in blocks per tick.
+	VX, VY, VZ float64
+
+	// Impulse reports that the velocity changed in a way clients can't
+	// predict, such as by bouncing, so it is sent again.
+	Impulse bool
+
 	// Metadata holds every synchronized data value, each index once.
 	Metadata []packet.EntityDataValue
 }

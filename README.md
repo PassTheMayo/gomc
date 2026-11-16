@@ -13,7 +13,7 @@ A Minecraft: Java Edition server for **Minecraft 26.3**, written from scratch in
 - **Build.** Place and break blocks. Stairs, logs, doors, beds, torches, signs and other blocks face the way you'd expect. Everyone nearby sees your changes.
 - **Use the creative inventory.** Your inventory, including enchanted and renamed items, is saved between sessions, along with your selected hotbar slot.
 - **Middle-click to pick blocks**, just like vanilla.
-- **Drop items** with the drop key, and swap items to your off hand with the swap key.
+- **Drop and pick up items.** Broken blocks drop what they would in vanilla, so stone needs a pickaxe and silk touch and fortune work. Dropped items fall, slide, merge and despawn after five minutes. Swap items to your off hand with the swap key.
 - **Come back later.** The world, your position and your inventory are saved automatically every five minutes and when the server stops.
 
 ## What Doesn't Work Yet
@@ -24,7 +24,7 @@ This is an early proof of concept, so much of Minecraft is still missing:
 - No health, hunger or damage, and no way to die.
 - No chat. Commands still work.
 - Blocks don't react to anything. Water and lava don't flow, sand doesn't fall, doors don't open, and torches float when the block under them is broken.
-- Broken blocks don't drop items, so survival mode is mostly for walking around.
+- Dropped items disappear when the server restarts.
 - No crafting, furnaces or chest storage.
 - Only the overworld exists. There's no Nether or End.
 - No caves, ores or villages in the generated world.

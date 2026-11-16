@@ -103,3 +103,83 @@ func (p *ContainerSetSlot) Decode(r *protocol.Reader) {
 	p.Slot = r.Short()
 	p.Stack = readStack(r)
 }
+
+// Click modes of ContainerClick, in vanilla's ContainerInput order.
+const (
+	ClickPickup int32 = iota
+	ClickQuickMove
+	ClickSwap
+	ClickClone
+	ClickThrow
+	ClickQuickCraft
+	ClickPickupAll
+)
+
+// ClickOutside is the slot of a click outside the container window.
+const ClickOutside int16 = -999
+
+// ChangedSlot is a slot a click changed and what the client expects in it.
+type ChangedSlot struct {
+	Slot  int16
+	Stack HashedStack
+}
+
+// ContainerClick reports a click in an open container. The client applies the
+// click itself and sends what it expects the changed slots and the cursor to
+// hold; StateID is the revision it acted on.
+type ContainerClick struct {
+	ContainerID int32
+	StateID     int32
+	Slot        int16
+	Button      int8
+	Mode        int32
+	Changed     []ChangedSlot
+	Carried     HashedStack
+}
+
+// maxChangedSlots is the most changed slots a click may report.
+const maxChangedSlots = 128
+
+func (p *ContainerClick) Encode(w *protocol.Writer) {
+	w.VarInt(p.ContainerID)
+	w.VarInt(p.StateID)
+	w.Short(p.Slot)
+	w.Byte(p.Button)
+	w.VarInt(p.Mode)
+	protocol.WriteList(w, p.Changed, func(c ChangedSlot) {
+		w.Short(c.Slot)
+		c.Stack.encode(w)
+	})
+	p.Carried.encode(w)
+}
+
+func (p *ContainerClick) Decode(r *protocol.Reader) {
+	p.ContainerID = r.VarInt()
+	p.StateID = r.VarInt()
+	p.Slot = r.Short()
+	p.Button = r.Byte()
+	p.Mode = r.VarInt()
+	p.Changed = protocol.ReadList(r, maxChangedSlots, func() ChangedSlot {
+		c := ChangedSlot{Slot: r.Short()}
+		c.Stack.decode(r)
+
+		return c
+	})
+	p.Carried.decode(r)
+}
+
+// ContainerClose reports that the player closed a container.
+type ContainerClose struct {
+	ContainerID int32
+}
+
+func (p *ContainerClose) Encode(w *protocol.Writer) { w.VarInt(p.ContainerID) }
+func (p *ContainerClose) Decode(r *protocol.Reader) { p.ContainerID = r.VarInt() }
+
+// SetCursorItem sets the stack held on the player's cursor.
+type SetCursorItem struct {
+	Stack item.Stack
+}
+
+func (p *SetCursorItem) Encode(w *protocol.Writer) { writeStack(w, p.Stack) }
+func (p *SetCursorItem) Decode(r *protocol.Reader) { p.Stack = readStack(r) }

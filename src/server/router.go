@@ -13,8 +13,9 @@ import (
 // Registration happens before any connection is accepted, so the router is
 // read without locking.
 type router struct {
-	handlers  map[reflect.Type][]handlerFunc
-	joinSteps []func(p *Player)
+	handlers   map[reflect.Type][]handlerFunc
+	joinSteps  []func(p *Player)
+	leaveSteps []func(p *Player)
 }
 
 type handlerFunc func(p *Player, pk packet.Packet) error
@@ -56,6 +57,11 @@ func (r *router) onJoin(step func(p *Player)) {
 	r.joinSteps = append(r.joinSteps, step)
 }
 
+// onLeave adds a step run when a player leaves, before its data is saved.
+func (r *router) onLeave(step func(p *Player)) {
+	r.leaveSteps = append(r.leaveSteps, step)
+}
+
 // dispatch runs the handlers of a packet. Packets without handlers are ignored.
 func (r *router) dispatch(p *Player, pk packet.Packet) error {
 	for _, handle := range r.handlers[reflect.TypeOf(pk)] {
@@ -70,6 +76,13 @@ func (r *router) dispatch(p *Player, pk packet.Packet) error {
 // join runs the join steps for p.
 func (r *router) join(p *Player) {
 	for _, step := range r.joinSteps {
+		step(p)
+	}
+}
+
+// leave runs the leave steps for p.
+func (r *router) leave(p *Player) {
+	for _, step := range r.leaveSteps {
 		step(p)
 	}
 }

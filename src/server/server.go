@@ -48,12 +48,14 @@ type Server struct {
 	sessions   *auth.SessionClient
 	sessionID  uuid.UUID
 
-	router   router
-	ticks    scheduler
-	entities *entity.Tracker
-	commands command.Dispatcher
-	pregenMu sync.Mutex
-	pregen   *pregenJob
+	router        router
+	ticks         scheduler
+	entities      *entity.Tracker
+	entitySources []func() []entity.Entity
+	items         itemEntities
+	commands      command.Dispatcher
+	pregenMu      sync.Mutex
+	pregen        *pregenJob
 
 	listener     net.Listener
 	nextEntityID atomic.Int32
@@ -169,6 +171,7 @@ func (s *Server) registerFeatures() {
 		s.registerInventory,
 		s.registerMovement,
 		s.registerGameTime,
+		s.registerItemEntities,
 		s.registerEntityTracking,
 		s.registerKeepAlive,
 		s.registerTabList,

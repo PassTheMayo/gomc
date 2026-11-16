@@ -32,6 +32,7 @@ const (
 	EntityType    = "minecraft:entity_type"
 	Item          = "minecraft:item"
 
+	Enchantment       = "minecraft:enchantment"
 	BlockEntityType   = "minecraft:block_entity_type"
 	DataComponentType = "minecraft:data_component_type"
 )

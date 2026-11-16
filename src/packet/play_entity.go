@@ -1,6 +1,7 @@
 package packet
 
 import (
+	"main/src/item"
 	"main/src/protocol"
 	"main/src/uuid"
 )
@@ -213,14 +214,16 @@ func (p *RemoveEntities) Decode(r *protocol.Reader) {
 
 // Entity data serializer IDs.
 const (
-	DataTypeByte int32 = 0
-	DataTypePose int32 = 20
+	DataTypeByte      int32 = 0
+	DataTypeItemStack int32 = 7
+	DataTypePose      int32 = 20
 )
 
-// Entity data indices shared by players.
+// Entity data indices.
 const (
 	DataSharedFlags             uint8 = 0
 	DataPose                    uint8 = 6
+	DataItem                    uint8 = 8
 	DataPlayerModeCustomisation uint8 = 16
 )
 
@@ -236,13 +239,24 @@ const (
 	PoseCrouching int32 = 5
 )
 
-// EntityDataValue is one synchronized entity data entry. Only the byte and
-// pose serializers are supported, which is all players need for movement.
+// EntityDataValue is one synchronized entity data entry. The byte, pose and
+// item stack serializers are supported, which is what players and dropped
+// items use.
 type EntityDataValue struct {
 	Index uint8
 	Type  int32
 	Byte  int8
 	Pose  int32
+	Item  item.Stack
+}
+
+// Equal reports whether two entries hold the same value.
+func (v EntityDataValue) Equal(o EntityDataValue) bool {
+	if v.Index != o.Index || v.Type != o.Type || v.Byte != o.Byte || v.Pose != o.Pose {
+		return false
+	}
+
+	return item.Equal(v.Item, o.Item)
 }
 
 // SetEntityData updates synchronized entity data.
@@ -263,6 +277,8 @@ func (p *SetEntityData) Encode(w *protocol.Writer) {
 			w.Byte(v.Byte)
 		case DataTypePose:
 			w.VarInt(v.Pose)
+		case DataTypeItemStack:
+			writeStack(w, v.Item)
 		}
 	}
 
@@ -286,10 +302,48 @@ func (p *SetEntityData) Decode(r *protocol.Reader) {
 			v.Byte = r.Byte()
 		case DataTypePose:
 			v.Pose = r.VarInt()
+		case DataTypeItemStack:
+			v.Item = readStack(r)
 		default:
 			r.Fail(errUnsupportedDataType)
 		}
 
 		p.Values = append(p.Values, v)
 	}
+}
+
+// SetEntityMotion sets an entity's velocity, in blocks per tick.
+type SetEntityMotion struct {
+	EntityID   int32
+	VX, VY, VZ float64
+}
+
+func (p *SetEntityMotion) Encode(w *protocol.Writer) {
+	w.VarInt(p.EntityID)
+	w.LpVec3(p.VX, p.VY, p.VZ)
+}
+
+func (p *SetEntityMotion) Decode(r *protocol.Reader) {
+	p.EntityID = r.VarInt()
+	p.VX, p.VY, p.VZ = r.LpVec3()
+}
+
+// TakeItemEntity shows an entity picking up a dropped item. Amount is the
+// item's count before the pickup, even when only part of it fit.
+type TakeItemEntity struct {
+	ItemID      int32
+	CollectorID int32
+	Amount      int32
+}
+
+func (p *TakeItemEntity) Encode(w *protocol.Writer) {
+	w.VarInt(p.ItemID)
+	w.VarInt(p.CollectorID)
+	w.VarInt(p.Amount)
+}
+
+func (p *TakeItemEntity) Decode(r *protocol.Reader) {
+	p.ItemID = r.VarInt()
+	p.CollectorID = r.VarInt()
+	p.Amount = r.VarInt()
 }

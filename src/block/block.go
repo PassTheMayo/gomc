@@ -87,6 +87,7 @@ func init() {
 
 	initPhysics()
 	initItemsAndEntities()
+	initHarvest()
 	resolveHooks()
 	waterSource = MustParse("water[level=0]")
 }

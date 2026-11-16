@@ -15,8 +15,9 @@ func TestMenuSlots(t *testing.T) {
 	for slot := range playerSize {
 		menu := MenuSlot(slot)
 
-		if back, ok := slotOfMenu(menu); !ok || back != slot {
-			t.Errorf("slot %d shows at menu slot %d, which maps back to %d, %v", slot, menu, back, ok)
+		// The crafting result and grid take menu slots 0 to 4.
+		if menu < menuArmorStart || menu >= MenuSize || seen[menu] {
+			t.Errorf("slot %d shows at menu slot %d", slot, menu)
 		}
 
 		seen[menu] = true
@@ -25,12 +26,6 @@ func TestMenuSlots(t *testing.T) {
 	// Head armor is at the top of the armor column.
 	if MenuSlot(armorStart+3) != 5 || MenuSlot(armorStart) != 8 {
 		t.Error("armor is not shown from head to feet")
-	}
-
-	for menu := range 5 {
-		if _, ok := slotOfMenu(menu); ok || seen[menu] {
-			t.Errorf("crafting menu slot %d maps to the inventory", menu)
-		}
 	}
 }
 
@@ -84,7 +79,7 @@ func TestSaveAndLoad(t *testing.T) {
 	loaded := NewPlayer()
 	loaded.Load(p.Selected(), p.Save())
 
-	if !reflect.DeepEqual(loaded, p) {
+	if !reflect.DeepEqual(loaded.slots, p.slots) || loaded.Selected() != p.Selected() {
 		t.Fatalf("loaded %+v, want %+v", loaded.slots, p.slots)
 	}
 }

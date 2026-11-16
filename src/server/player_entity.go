@@ -3,6 +3,7 @@ package server
 import (
 	"main/src/entity"
 	"main/src/packet"
+	"main/src/physics"
 	"main/src/registry"
 	"main/src/uuid"
 	"main/src/world"
@@ -29,7 +30,7 @@ func (p *Player) Type() int32 {
 // and sprinting, and skin layers.
 func (p *Player) State() entity.State {
 	snap := p.snapshot()
-	crouching := snap.Sneaking && !snap.Flying
+	crouching := snap.crouching()
 
 	var flags int8
 	pose := packet.PoseStanding
@@ -62,8 +63,9 @@ func (p *Player) View() (world.ChunkPos, int) {
 	return snap.chunkPos(), snap.ViewDistance
 }
 
-// registerEntityTracking shows players to each other as they move in and out
-// of view and relays their movement every tick.
+// registerEntityTracking shows players and the entities features add with
+// trackEntities to the players that can see them, and relays their movement
+// every tick.
 func (s *Server) registerEntityTracking() {
 	s.ticks.every(1, func(t *tick) {
 		entities := make([]entity.Entity, len(t.players))
@@ -73,6 +75,34 @@ func (s *Server) registerEntityTracking() {
 			entities[i], viewers[i] = p, p
 		}
 
+		for _, source := range s.entitySources {
+			entities = append(entities, source()...)
+		}
+
 		s.entities.Update(entities, viewers)
 	})
+}
+
+// trackEntities adds a source of entities to show players. It is called on
+// the game loop, after the tasks of features registered before entity
+// tracking.
+func (s *Server) trackEntities(source func() []entity.Entity) {
+	s.entitySources = append(s.entitySources, source)
+}
+
+// crouching reports whether the player crouches, which it doesn't while
+// flying.
+func (s snapshot) crouching() bool {
+	return s.Sneaking && !s.Flying
+}
+
+// box returns the player's bounding box, which is shorter while crouching.
+func (s snapshot) box() physics.AABB {
+	height := playerHeight
+
+	if s.crouching() {
+		height = crouchingHeight
+	}
+
+	return physics.Box(physics.Vec3{X: s.X, Y: s.Y, Z: s.Z}, playerWidth, height)
 }

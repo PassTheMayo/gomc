@@ -36,6 +36,17 @@ var (
 	clearSolids       = []string{"glass", "glass_pane", "cactus", "iron_bars", "chain"}
 )
 
+// defaultFriction is how slippery most blocks are; slipperyBlocks differ.
+const defaultFriction float32 = 0.6
+
+var slipperyBlocks = map[string]float32{
+	"minecraft:ice":         0.98,
+	"minecraft:packed_ice":  0.98,
+	"minecraft:frosted_ice": 0.98,
+	"minecraft:blue_ice":    0.989,
+	"minecraft:slime_block": 0.8,
+}
+
 // statePhysics holds the physics of every block state.
 var statePhysics []physics
 
@@ -130,4 +141,19 @@ func IsSolid(s StateID) bool {
 // it either has a collision shape or contains a fluid.
 func BlocksMotion(s StateID) bool {
 	return physicsOf(s).flags&(flagSolid|flagFluid) != 0
+}
+
+// Friction returns how much of an entity's horizontal speed s keeps when the
+// entity slides on it.
+func Friction(s StateID) float32 {
+	if f, ok := slipperyBlocks[ByState(s).Name]; ok {
+		return f
+	}
+
+	return defaultFriction
+}
+
+// IsLava reports whether s is lava.
+func IsLava(s StateID) bool {
+	return ByState(s).Name == "minecraft:lava"
 }

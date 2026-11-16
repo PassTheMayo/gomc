@@ -60,3 +60,59 @@ func TestSwingAnimations(t *testing.T) {
 		}
 	}
 }
+
+func TestProperties(t *testing.T) {
+	items := registry.MustGet(registry.Item)
+	blocks := registry.MustGet(registry.Block)
+	id := func(name string) int32 { return items.MustID(name) }
+
+	if got := Of(id("minecraft:ender_pearl"), 1).MaxStackSize(); got != 16 {
+		t.Errorf("ender pearls stack to %d", got)
+	}
+
+	if got := Of(id("minecraft:stone"), 1).MaxStackSize(); got != 64 {
+		t.Errorf("stone stacks to %d", got)
+	}
+
+	if PropertiesOf(id("minecraft:iron_helmet")).Equippable != SlotHead || PropertiesOf(id("minecraft:shield")).Equippable != SlotOffHand {
+		t.Error("armor and shields must know the slot they are worn in")
+	}
+
+	// A max_stack_size component overrides the default.
+	custom := Stack{Count: 1, Item: id("minecraft:stone"), Components: []Component{{Type: maxStackSize, Data: []byte{99}}}}
+
+	if custom.MaxStackSize() != 99 {
+		t.Errorf("a stack size component of 99 gave %d", custom.MaxStackSize())
+	}
+
+	stone, obsidian, cobweb := blocks.MustID("minecraft:stone"), blocks.MustID("minecraft:obsidian"), blocks.MustID("minecraft:cobweb")
+
+	cases := []struct {
+		tool  string
+		block int32
+		want  bool
+	}{
+		{"minecraft:wooden_pickaxe", stone, true},
+		{"minecraft:wooden_pickaxe", obsidian, false},
+		{"minecraft:diamond_pickaxe", obsidian, true},
+		{"minecraft:diamond_shovel", stone, false},
+		{"minecraft:shears", cobweb, true},
+		{"minecraft:stick", stone, false},
+	}
+
+	for _, c := range cases {
+		if got := PropertiesOf(id(c.tool)).CorrectForDrops(c.block); got != c.want {
+			t.Errorf("%s harvesting block %d = %v, want %v", c.tool, c.block, got, c.want)
+		}
+	}
+}
+
+func TestEnchantmentLevel(t *testing.T) {
+	enchantments := registry.MustGet(registry.DataComponentType).MustID("minecraft:enchantments")
+	fortune, silk := Enchantment("minecraft:fortune"), Enchantment("minecraft:silk_touch")
+	s := Stack{Count: 1, Item: 1, Components: []Component{{Type: enchantments, Data: []byte{1, byte(fortune), 3}}}}
+
+	if s.EnchantmentLevel(fortune) != 3 || s.EnchantmentLevel(silk) != 0 || Of(1, 1).EnchantmentLevel(fortune) != 0 {
+		t.Fatalf("enchantment levels fortune=%d silk_touch=%d", s.EnchantmentLevel(fortune), s.EnchantmentLevel(silk))
+	}
+}

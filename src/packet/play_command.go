@@ -44,11 +44,9 @@ const (
 	integerHasMax uint8 = 0x02
 )
 
-// Entity parser flags, the only property of an entity argument.
-const (
-	EntitySingle      uint8 = 0x01
-	EntityPlayersOnly uint8 = 0x02
-)
+// EntityPlayersOnly is set in an entity argument's flags, its only property,
+// when the argument only accepts players.
+const EntityPlayersOnly uint8 = 0x02
 
 var errUnsupportedNode = errors.New("packet: unsupported command node")
 

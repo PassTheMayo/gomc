@@ -42,13 +42,15 @@ func (s Stack) IsEmpty() bool {
 // any entries. Its value starts with the VarInt entry count, which encodes as
 // a zero byte only when it is zero.
 func (s Stack) IsEnchanted() bool {
-	for _, c := range s.Components {
-		if c.Type == enchantments {
-			return len(c.Data) > 0 && c.Data[0] != 0
-		}
-	}
+	data, ok := s.component(enchantments)
 
-	return false
+	return ok && len(data) > 0 && data[0] != 0
+}
+
+// Equal reports whether two stacks hold the same number of the same item with
+// the same components.
+func Equal(a, b Stack) bool {
+	return a.Count == b.Count && (a.IsEmpty() || SameItemSameComponents(a, b))
 }
 
 // SameItemSameComponents reports whether two non-empty stacks hold the same

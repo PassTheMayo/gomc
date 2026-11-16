@@ -70,6 +70,9 @@ func (s *Server) newPlayer(sess *session) *Player {
 		yaw:       saved.Yaw,
 		pitch:     saved.Pitch,
 		inventory: inventory.NewPlayer(),
+
+		// Vanilla allows 74 quick drops, then one a second.
+		dropThrottle: throttle{cost: 20, limit: 1480},
 	}
 
 	p.gameMode.Store(s.gameMode)
@@ -144,6 +147,7 @@ func (s *Server) join(p *Player) {
 
 // leave removes the player from the world and saves it.
 func (s *Server) leave(p *Player) {
+	s.router.leave(p)
 	p.chunks.stop()
 
 	if err := s.store.SavePlayer(p.Profile.ID, p.savedData()); err != nil {

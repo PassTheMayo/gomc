@@ -2,6 +2,7 @@ package packet
 
 import (
 	"errors"
+	"slices"
 
 	"main/src/item"
 	"main/src/protocol"
@@ -84,4 +85,79 @@ func readStackForm(r *protocol.Reader, delimited bool) item.Stack {
 	}
 
 	return s
+}
+
+// HashedStack is how clients describe a stack in click packets: its item and
+// count, with the values of changed components replaced by hashes. A zero
+// count is an empty slot.
+type HashedStack struct {
+	Item       int32
+	Count      int32
+	Components []HashedComponent
+	Removed    []int32
+}
+
+// HashedComponent is a changed component and the hash of its value.
+type HashedComponent struct {
+	Type int32
+	Hash int32
+}
+
+// maxHashedComponents bounds the component lists of a hashed stack.
+const maxHashedComponents = 256
+
+// Matches reports whether the hashed stack has the item and count of s and
+// changes the same components. Component values can't be compared without
+// vanilla's hashing.
+func (h HashedStack) Matches(s item.Stack) bool {
+	if h.Count <= 0 || s.IsEmpty() {
+		return h.Count <= 0 && s.IsEmpty()
+	}
+
+	if h.Item != s.Item || h.Count != s.Count || len(h.Components) != len(s.Components) || len(h.Removed) != len(s.Removed) {
+		return false
+	}
+
+	for _, c := range h.Components {
+		if !slices.ContainsFunc(s.Components, func(o item.Component) bool { return o.Type == c.Type }) {
+			return false
+		}
+	}
+
+	for _, t := range h.Removed {
+		if !slices.Contains(s.Removed, t) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (h *HashedStack) encode(w *protocol.Writer) {
+	w.Bool(h.Count > 0)
+
+	if h.Count <= 0 {
+		return
+	}
+
+	w.VarInt(h.Item)
+	w.VarInt(h.Count)
+	protocol.WriteList(w, h.Components, func(c HashedComponent) {
+		w.VarInt(c.Type)
+		w.Int(c.Hash)
+	})
+	protocol.WriteList(w, h.Removed, w.VarInt)
+}
+
+func (h *HashedStack) decode(r *protocol.Reader) {
+	if !r.Bool() {
+		return
+	}
+
+	h.Item = r.VarInt()
+	h.Count = r.VarInt()
+	h.Components = protocol.ReadList(r, maxHashedComponents, func() HashedComponent {
+		return HashedComponent{Type: r.VarInt(), Hash: r.Int()}
+	})
+	h.Removed = protocol.ReadList(r, maxHashedComponents, r.VarInt)
 }

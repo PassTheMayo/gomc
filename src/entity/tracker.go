@@ -139,7 +139,7 @@ func (t *Tracker) updateViewer(v Viewer, entities []Entity, states map[int32]Sta
 func spawnPackets(e Entity, s State) []packet.Packet {
 	out := []packet.Packet{&packet.AddEntity{
 		EntityID: e.ID(), UUID: e.UUID(), Type: e.Type(),
-		X: s.X, Y: s.Y, Z: s.Z, Pitch: s.Pitch, Yaw: s.Yaw, HeadYaw: s.HeadYaw,
+		X: s.X, Y: s.Y, Z: s.Z, VX: s.VX, VY: s.VY, VZ: s.VZ, Pitch: s.Pitch, Yaw: s.Yaw, HeadYaw: s.HeadYaw,
 	}}
 
 	if len(s.Metadata) > 0 {
@@ -216,10 +216,14 @@ func (t *sentState) update(id int32, s State) []packet.Packet {
 		out = append(out, &packet.RotateHead{EntityID: id, HeadYaw: s.HeadYaw})
 	}
 
+	if s.Impulse {
+		out = append(out, &packet.SetEntityMotion{EntityID: id, VX: s.VX, VY: s.VY, VZ: s.VZ})
+	}
+
 	var changed []packet.EntityDataValue
 
 	for _, v := range s.Metadata {
-		if t.metadata[v.Index] != v {
+		if !t.metadata[v.Index].Equal(v) {
 			changed = append(changed, v)
 			t.metadata[v.Index] = v
 		}

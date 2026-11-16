@@ -834,7 +834,7 @@ func TestInventory(t *testing.T) {
 		}
 
 		for _, want := range changed {
-			if got := waitFor[*packet.ContainerSetSlot](a, nil); !reflect.DeepEqual(*got, want) {
+			if got := waitFor[*packet.ContainerSetSlot](a, nil); got.Slot != want.Slot || !reflect.DeepEqual(got.Stack, want.Stack) {
 				t.Fatalf("picking changed %+v, want %+v", *got, want)
 			}
 		}
@@ -937,7 +937,7 @@ func TestArmSwingAndSwapHands(t *testing.T) {
 	a.send(&packet.PlayerAction{Action: packet.ActionSwapWithOffHand})
 
 	for _, want := range []packet.ContainerSetSlot{{Slot: 36}, {Slot: 45, Stack: item.Of(stone, 64)}} {
-		if got := waitFor[*packet.ContainerSetSlot](a, nil); !reflect.DeepEqual(*got, want) {
+		if got := waitFor[*packet.ContainerSetSlot](a, nil); got.Slot != want.Slot || !reflect.DeepEqual(got.Stack, want.Stack) {
 			t.Fatalf("swapping hands sent %+v, want %+v", *got, want)
 		}
 	}
@@ -1087,4 +1087,99 @@ func TestGameModeCommand(t *testing.T) {
 
 	b.send(&packet.ChatCommand{Command: "gamemode creative"})
 	waitFor[*packet.SystemChat](b, isChat("command.unknown.command"))
+}
+
+func TestItemDrops(t *testing.T) {
+	conf := testConfig(t.TempDir())
+	conf.GameMode = "survival"
+	conf.Operators = []string{"alice"}
+	_, addr := startServer(t, conf)
+
+	items := registry.MustGet(registry.Item)
+	itemType := registry.MustGet(registry.EntityType).MustID("minecraft:item")
+	stone, dirt := items.MustID("minecraft:stone"), items.MustID("minecraft:dirt")
+
+	a := dial(t, addr)
+	alice := a.login("Alice").EntityID
+	waitFor[*packet.PlayerPosition](a, nil)
+	x, z := a.waitForNearbyChunks()
+
+	// spawned waits for the next dropped item and returns its entity ID and
+	// stack.
+	spawned := func() (int32, item.Stack) {
+		t.Helper()
+
+		id := waitFor[*packet.AddEntity](a, func(p *packet.AddEntity) bool { return p.Type == itemType }).EntityID
+		data := waitFor[*packet.SetEntityData](a, func(p *packet.SetEntityData) bool { return p.EntityID == id })
+
+		if len(data.Values) != 1 || data.Values[0].Index != packet.DataItem {
+			t.Fatalf("dropped item has data %+v", data.Values)
+		}
+
+		return id, data.Values[0].Item
+	}
+
+	isGameMode := func(mode int32) func(*packet.GameEvent) bool {
+		return func(p *packet.GameEvent) bool {
+			return p.Event == packet.GameEventChangeGameMode && p.Value == float32(mode)
+		}
+	}
+
+	// Alice takes stone and dirt from the creative inventory and throws some
+	// dirt out of it.
+	a.send(&packet.ChatCommand{Command: "gamemode creative"})
+	waitFor[*packet.GameEvent](a, isGameMode(packet.GameModeCreative))
+	a.send(&packet.SetCreativeModeSlot{Slot: 36, Stack: item.Of(stone, 5)})
+	a.send(&packet.SetCreativeModeSlot{Slot: 37, Stack: item.Of(dirt, 5)})
+	a.send(&packet.SetCreativeModeSlot{Slot: -1, Stack: item.Of(dirt, 3)})
+
+	if _, stack := spawned(); !item.Equal(stack, item.Of(dirt, 3)) {
+		t.Fatalf("throwing from the creative inventory dropped %+v", stack)
+	}
+
+	a.send(&packet.ChatCommand{Command: "gamemode survival"})
+	waitFor[*packet.GameEvent](a, isGameMode(packet.GameModeSurvival))
+
+	// Looking down, Alice drops a stone at her feet and picks it back up once
+	// its pickup delay ends.
+	a.send(&packet.MovePlayerRot{Pitch: 90, MoveFlags: packet.MoveFlags{OnGround: true}})
+	a.send(&packet.SetCarriedItem{Slot: 0})
+	a.send(&packet.PlayerAction{Action: packet.ActionDropItem})
+
+	id, stack := spawned()
+
+	if !item.Equal(stack, item.Of(stone, 1)) {
+		t.Fatalf("the drop key dropped %+v", stack)
+	}
+
+	if take := waitFor[*packet.TakeItemEntity](a, nil); take.ItemID != id || take.CollectorID != alice || take.Amount != 1 {
+		t.Fatalf("picking up the stone sent %+v", take)
+	}
+
+	if slot := waitFor[*packet.ContainerSetSlot](a, func(p *packet.ContainerSetSlot) bool { return p.Slot == 36 }); slot.Stack.Count != 5 {
+		t.Fatalf("Alice has %d stone after picking it up", slot.Stack.Count)
+	}
+
+	// Throwing from a slot in the inventory window drops one item.
+	a.send(&packet.ContainerClick{Slot: 37, Mode: packet.ClickThrow, Changed: []packet.ChangedSlot{{Slot: 37, Stack: packet.HashedStack{Item: dirt, Count: 4}}}})
+
+	if _, stack := spawned(); !item.Equal(stack, item.Of(dirt, 1)) {
+		t.Fatalf("throwing from the inventory dropped %+v", stack)
+	}
+
+	// Stone broken by hand drops nothing; dirt drops itself.
+	stonePos := a.placeOnGround(0, x+2, z, 1)
+	dirtPos := a.placeOnGround(1, x-2, z, 2)
+	waitFor[*packet.BlockUpdate](a, isBlockUpdate(stonePos))
+	waitFor[*packet.BlockUpdate](a, isBlockUpdate(dirtPos))
+
+	for i, pos := range []packet.BlockPos{stonePos, dirtPos} {
+		a.send(&packet.PlayerAction{Action: packet.ActionStartDestroyBlock, Pos: pos, Sequence: int32(3 + i)})
+		a.send(&packet.PlayerAction{Action: packet.ActionStopDestroyBlock, Pos: pos, Sequence: int32(3 + i)})
+		waitFor[*packet.BlockUpdate](a, func(p *packet.BlockUpdate) bool { return p.Pos == pos && block.IsAir(block.StateID(p.State)) })
+	}
+
+	if _, stack := spawned(); !item.Equal(stack, item.Of(dirt, 1)) {
+		t.Fatalf("breaking stone and dirt by hand dropped %+v first", stack)
+	}
 }

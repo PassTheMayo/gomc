@@ -133,3 +133,19 @@ func TestBehaviorResolution(t *testing.T) {
 		}
 	}
 }
+
+func TestHarvestAndFriction(t *testing.T) {
+	if !RequiresCorrectTool(MustParse("stone")) || !RequiresCorrectTool(MustParse("iron_ore")) || RequiresCorrectTool(MustParse("dirt")) {
+		t.Error("stone and ores need the correct tool; dirt doesn't")
+	}
+
+	for name := range slipperyBlocks {
+		if _, ok := ByName(name); !ok {
+			t.Errorf("slippery block %s doesn't exist", name)
+		}
+	}
+
+	if Friction(MustParse("ice")) != 0.98 || Friction(MustParse("stone")) != defaultFriction {
+		t.Error("ice must be slippery and stone not")
+	}
+}

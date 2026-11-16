@@ -60,3 +60,16 @@ func NetworkTags() map[string][]Tag {
 
 	return networkTags
 }
+
+// TagEntries returns the network IDs of a tag's entries, such as
+// minecraft:mineable/pickaxe in the block registry.
+func TagEntries(registryName, tag string) ([]int32, bool) {
+	tags := NetworkTags()[registryName]
+	i, found := slices.BinarySearchFunc(tags, tag, func(t Tag, name string) int { return cmp.Compare(t.Name, name) })
+
+	if !found {
+		return nil, false
+	}
+
+	return tags[i].Entries, true
+}
