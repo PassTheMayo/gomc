@@ -31,7 +31,7 @@ type SelectKnownPacks struct {
 }
 
 func (p *SelectKnownPacks) Encode(w *protocol.Writer) {
-	writeList(w, p.Packs, func(k KnownPack) {
+	protocol.WriteList(w, p.Packs, func(k KnownPack) {
 		w.String(k.Namespace)
 		w.String(k.ID)
 		w.String(k.Version)
@@ -39,7 +39,7 @@ func (p *SelectKnownPacks) Encode(w *protocol.Writer) {
 }
 
 func (p *SelectKnownPacks) Decode(r *protocol.Reader) {
-	p.Packs = readList(r, 64, func() KnownPack {
+	p.Packs = protocol.ReadList(r, 64, func() KnownPack {
 		return KnownPack{Namespace: r.String(32767), ID: r.String(32767), Version: r.String(32767)}
 	})
 }
@@ -59,7 +59,7 @@ type RegistryData struct {
 
 func (p *RegistryData) Encode(w *protocol.Writer) {
 	w.String(p.Registry)
-	writeList(w, p.Entries, func(e RegistryEntry) {
+	protocol.WriteList(w, p.Entries, func(e RegistryEntry) {
 		w.String(e.ID)
 		w.Bool(e.Data != nil)
 
@@ -71,7 +71,7 @@ func (p *RegistryData) Encode(w *protocol.Writer) {
 
 func (p *RegistryData) Decode(r *protocol.Reader) {
 	p.Registry = r.String(32767)
-	p.Entries = readList(r, r.Remaining(), func() RegistryEntry {
+	p.Entries = protocol.ReadList(r, r.Remaining(), func() RegistryEntry {
 		e := RegistryEntry{ID: r.String(32767)}
 
 		if r.Bool() {
@@ -88,11 +88,11 @@ type UpdateEnabledFeatures struct {
 }
 
 func (p *UpdateEnabledFeatures) Encode(w *protocol.Writer) {
-	writeList(w, p.Features, w.String)
+	protocol.WriteList(w, p.Features, w.String)
 }
 
 func (p *UpdateEnabledFeatures) Decode(r *protocol.Reader) {
-	p.Features = readList(r, r.Remaining(), func() string { return r.String(32767) })
+	p.Features = protocol.ReadList(r, r.Remaining(), func() string { return r.String(32767) })
 }
 
 // UpdateTags sends registry tags, keyed by registry name.
@@ -103,11 +103,11 @@ type UpdateTags struct {
 func (p *UpdateTags) Encode(w *protocol.Writer) {
 	names := slices.Sorted(maps.Keys(p.Tags))
 
-	writeList(w, names, func(name string) {
+	protocol.WriteList(w, names, func(name string) {
 		w.String(name)
-		writeList(w, p.Tags[name], func(t registry.Tag) {
+		protocol.WriteList(w, p.Tags[name], func(t registry.Tag) {
 			w.String(t.Name)
-			writeList(w, t.Entries, w.VarInt)
+			protocol.WriteList(w, t.Entries, w.VarInt)
 		})
 	})
 }
@@ -118,8 +118,8 @@ func (p *UpdateTags) Decode(r *protocol.Reader) {
 
 	for i := 0; i < n && r.Err() == nil; i++ {
 		name := r.String(32767)
-		p.Tags[name] = readList(r, r.Remaining(), func() registry.Tag {
-			return registry.Tag{Name: r.String(32767), Entries: readList(r, r.Remaining(), r.VarInt)}
+		p.Tags[name] = protocol.ReadList(r, r.Remaining(), func() registry.Tag {
+			return registry.Tag{Name: r.String(32767), Entries: protocol.ReadList(r, r.Remaining(), r.VarInt)}
 		})
 	}
 }

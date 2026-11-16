@@ -121,7 +121,7 @@ func (p *LoginDisconnect) Decode(r *protocol.Reader) {
 
 // writeProperties writes game profile properties such as skin textures.
 func writeProperties(w *protocol.Writer, props []profile.Property) {
-	writeList(w, props, func(prop profile.Property) {
+	protocol.WriteList(w, props, func(prop profile.Property) {
 		w.String(prop.Name)
 		w.String(prop.Value)
 		w.Bool(prop.Signature != "")
@@ -133,7 +133,7 @@ func writeProperties(w *protocol.Writer, props []profile.Property) {
 }
 
 func readProperties(r *protocol.Reader) []profile.Property {
-	return readList(r, 16, func() profile.Property {
+	return protocol.ReadList(r, 16, func() profile.Property {
 		prop := profile.Property{Name: r.String(64), Value: r.String(32767)}
 
 		if r.Bool() {

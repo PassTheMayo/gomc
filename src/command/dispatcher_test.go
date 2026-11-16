@@ -1,6 +1,8 @@
 package command
 
 import (
+	"bytes"
+	"strings"
 	"testing"
 
 	"main/src/packet"
@@ -105,7 +107,7 @@ func TestTree(t *testing.T) {
 		t.Fatalf("unexpected pregen node %+v", pregen)
 	}
 
-	if radius.Type != packet.NodeArgument || radius.Parser != packet.ParserInteger || radius.Min != 1 || radius.Max != 100 || !radius.Executable {
+	if radius.Type != packet.NodeArgument || radius.Parser != packet.ParserInteger || !bytes.Equal(radius.Properties, packet.IntegerProperties(1, 100)) || !radius.Executable {
 		t.Fatalf("unexpected radius node %+v", radius)
 	}
 
@@ -116,5 +118,33 @@ func TestTree(t *testing.T) {
 	// The tree must survive the network round trip.
 	if _, err := packet.PlayClientbound.Decode(packet.PlayClientbound.ID(tree), packet.Encode(tree)); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// restArgument takes every remaining word, like a message argument.
+type restArgument struct{}
+
+func (restArgument) Parse(r *Reader) (any, *text.Component) {
+	var words []string
+
+	for !r.AtEnd() {
+		words = append(words, r.ReadWord())
+	}
+
+	return strings.Join(words, " "), nil
+}
+
+func (restArgument) Parser() (int32, []byte) { return 5, nil }
+
+// New argument types plug in without changes to the dispatcher.
+func TestCustomArgument(t *testing.T) {
+	var got any
+	d := &Dispatcher{}
+	d.Register(Literal("say", Arg("message", restArgument{}).Executes(func(ctx *Context) { got = ctx.values["message"] })), false)
+
+	d.Execute(&testSource{}, "say  hello   there world")
+
+	if got != "hello there world" {
+		t.Fatalf("message parsed as %q", got)
 	}
 }

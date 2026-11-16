@@ -42,10 +42,53 @@ const (
 
 var errUnsupportedNode = errors.New("packet: unsupported command node")
 
+// parserProperties reads the properties of each supported argument parser.
+// Decoding needs them to find where a node ends; encoding writes the bytes
+// the argument produced.
+var parserProperties = map[int32]func(r *protocol.Reader){
+	ParserInteger: func(r *protocol.Reader) {
+		bounds := r.UByte()
+
+		if bounds&integerHasMin != 0 {
+			r.Int()
+		}
+
+		if bounds&integerHasMax != 0 {
+			r.Int()
+		}
+	},
+}
+
+// IntegerProperties encodes the bounds of an integer argument. math.MinInt32
+// and math.MaxInt32 mean unbounded.
+func IntegerProperties(min, max int32) []byte {
+	w := protocol.NewWriter()
+	var bounds uint8
+
+	if min != math.MinInt32 {
+		bounds |= integerHasMin
+	}
+
+	if max != math.MaxInt32 {
+		bounds |= integerHasMax
+	}
+
+	w.UByte(bounds)
+
+	if bounds&integerHasMin != 0 {
+		w.Int(min)
+	}
+
+	if bounds&integerHasMax != 0 {
+		w.Int(max)
+	}
+
+	return w.Bytes()
+}
+
 // CommandNode is a node of the command tree the client uses to suggest and
-// validate commands. Only literal nodes and integer arguments are supported,
-// which is all the server's commands need. Min and Max hold the integer
-// bounds; math.MinInt32 and math.MaxInt32 mean unbounded.
+// validate commands. Argument nodes name their parser and carry its encoded
+// properties.
 type CommandNode struct {
 	Type       uint8
 	Executable bool
@@ -53,7 +96,7 @@ type CommandNode struct {
 	Children   []int32
 	Name       string
 	Parser     int32
-	Min, Max   int32
+	Properties []byte
 }
 
 // Commands sends the commands the player may use.
@@ -63,7 +106,7 @@ type Commands struct {
 }
 
 func (p *Commands) Encode(w *protocol.Writer) {
-	writeList(w, p.Nodes, func(n CommandNode) {
+	protocol.WriteList(w, p.Nodes, func(n CommandNode) {
 		flags := n.Type
 
 		if n.Executable {
@@ -75,7 +118,7 @@ func (p *Commands) Encode(w *protocol.Writer) {
 		}
 
 		w.UByte(flags)
-		writeList(w, n.Children, w.VarInt)
+		protocol.WriteList(w, n.Children, w.VarInt)
 
 		if n.Type == NodeRoot {
 			return
@@ -85,39 +128,20 @@ func (p *Commands) Encode(w *protocol.Writer) {
 
 		if n.Type == NodeArgument {
 			w.VarInt(n.Parser)
-
-			var bounds uint8
-
-			if n.Min != math.MinInt32 {
-				bounds |= integerHasMin
-			}
-
-			if n.Max != math.MaxInt32 {
-				bounds |= integerHasMax
-			}
-
-			w.UByte(bounds)
-
-			if bounds&integerHasMin != 0 {
-				w.Int(n.Min)
-			}
-
-			if bounds&integerHasMax != 0 {
-				w.Int(n.Max)
-			}
+			w.Raw(n.Properties)
 		}
 	})
 	w.VarInt(p.Root)
 }
 
 func (p *Commands) Decode(r *protocol.Reader) {
-	p.Nodes = readList(r, r.Remaining(), func() CommandNode {
+	p.Nodes = protocol.ReadList(r, r.Remaining(), func() CommandNode {
 		flags := r.UByte()
 		n := CommandNode{
 			Type:       flags & nodeTypeMask,
 			Executable: flags&nodeExecutable != 0,
 			Restricted: flags&nodeRestricted != 0,
-			Children:   readList(r, r.Remaining(), r.VarInt),
+			Children:   protocol.ReadList(r, r.Remaining(), r.VarInt),
 		}
 
 		if flags&(nodeRedirect|nodeSuggestions) != 0 {
@@ -132,21 +156,17 @@ func (p *Commands) Decode(r *protocol.Reader) {
 		n.Name = r.String(32767)
 
 		if n.Type == NodeArgument {
-			if n.Parser = r.VarInt(); n.Parser != ParserInteger {
+			n.Parser = r.VarInt()
+			readProperties, ok := parserProperties[n.Parser]
+
+			if !ok {
 				r.Fail(errUnsupportedNode)
 				return n
 			}
 
-			bounds := r.UByte()
-			n.Min, n.Max = math.MinInt32, math.MaxInt32
-
-			if bounds&integerHasMin != 0 {
-				n.Min = r.Int()
-			}
-
-			if bounds&integerHasMax != 0 {
-				n.Max = r.Int()
-			}
+			start := r.Unread()
+			readProperties(r)
+			n.Properties = start[:len(start)-len(r.Unread())]
 		}
 
 		return n

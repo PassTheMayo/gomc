@@ -1,8 +1,6 @@
 package storage
 
 import (
-	"errors"
-	"os"
 	"path/filepath"
 
 	"main/src/protocol"
@@ -53,21 +51,10 @@ func (s *Store) playerPath(id uuid.UUID) string {
 
 // LoadPlayer returns the saved state of a player and whether one exists.
 func (s *Store) LoadPlayer(id uuid.UUID) (PlayerData, bool, error) {
-	data, err := os.ReadFile(s.playerPath(id))
+	r, fileVersion, found, err := readVersioned(s.playerPath(id), playerMagic, playerVersion)
 
-	if errors.Is(err, os.ErrNotExist) {
-		return PlayerData{}, false, nil
-	}
-
-	if err != nil {
+	if !found || err != nil {
 		return PlayerData{}, false, err
-	}
-
-	r := protocol.NewReader(data)
-	magic, fileVersion := string(r.Raw(4)), r.UByte()
-
-	if magic != playerMagic || fileVersion < 1 || fileVersion > playerVersion {
-		return PlayerData{}, false, errors.New("storage: unsupported player file")
 	}
 
 	p := PlayerData{X: r.Double(), Y: r.Double(), Z: r.Double(), Yaw: r.Float(), Pitch: r.Float()}
@@ -76,15 +63,15 @@ func (s *Store) LoadPlayer(id uuid.UUID) (PlayerData, bool, error) {
 		p.HeldSlot = int(r.UByte())
 		sameProtocol := r.VarInt() == version.Protocol
 
-		for n := r.Length(maxInventoryItems); n > 0 && r.Err() == nil; n-- {
+		p.Inventory = protocol.ReadList(r, maxInventoryItems, func() InventoryItem {
 			item := readItem(r)
 
 			if !sameProtocol {
 				item.Components, item.Removed = nil, nil
 			}
 
-			p.Inventory = append(p.Inventory, item)
-		}
+			return item
+		})
 	}
 
 	if err = r.Finish(); err != nil {
@@ -96,23 +83,16 @@ func (s *Store) LoadPlayer(id uuid.UUID) (PlayerData, bool, error) {
 
 // SavePlayer stores the state of a player.
 func (s *Store) SavePlayer(id uuid.UUID, p PlayerData) error {
-	w := protocol.NewWriter()
-	w.Raw([]byte(playerMagic))
-	w.UByte(playerVersion)
-	w.Double(p.X)
-	w.Double(p.Y)
-	w.Double(p.Z)
-	w.Float(p.Yaw)
-	w.Float(p.Pitch)
-	w.UByte(uint8(p.HeldSlot))
-	w.VarInt(version.Protocol)
-	w.VarInt(int32(len(p.Inventory)))
-
-	for _, item := range p.Inventory {
-		writeItem(w, item)
-	}
-
-	return writeFileAtomic(s.playerPath(id), w.Bytes())
+	return writeVersioned(s.playerPath(id), playerMagic, playerVersion, func(w *protocol.Writer) {
+		w.Double(p.X)
+		w.Double(p.Y)
+		w.Double(p.Z)
+		w.Float(p.Yaw)
+		w.Float(p.Pitch)
+		w.UByte(uint8(p.HeldSlot))
+		w.VarInt(version.Protocol)
+		protocol.WriteList(w, p.Inventory, func(item InventoryItem) { writeItem(w, item) })
+	})
 }
 
 // writeItem writes slot u8, item name, count, a VarInt count of components
@@ -122,30 +102,19 @@ func writeItem(w *protocol.Writer, item InventoryItem) {
 	w.UByte(uint8(item.Slot))
 	w.String(item.Item)
 	w.VarInt(item.Count)
-	w.VarInt(int32(len(item.Components)))
-
-	for _, c := range item.Components {
+	protocol.WriteList(w, item.Components, func(c ItemComponent) {
 		w.VarInt(c.Type)
 		w.ByteArray(c.Data)
-	}
-
-	w.VarInt(int32(len(item.Removed)))
-
-	for _, t := range item.Removed {
-		w.VarInt(t)
-	}
+	})
+	protocol.WriteList(w, item.Removed, w.VarInt)
 }
 
 func readItem(r *protocol.Reader) InventoryItem {
 	item := InventoryItem{Slot: int(r.UByte()), Item: r.String(256), Count: r.VarInt()}
-
-	for n := r.Length(r.Remaining()); n > 0 && r.Err() == nil; n-- {
-		item.Components = append(item.Components, ItemComponent{Type: r.VarInt(), Data: r.ByteArray(r.Remaining())})
-	}
-
-	for n := r.Length(r.Remaining()); n > 0 && r.Err() == nil; n-- {
-		item.Removed = append(item.Removed, r.VarInt())
-	}
+	item.Components = protocol.ReadList(r, r.Remaining(), func() ItemComponent {
+		return ItemComponent{Type: r.VarInt(), Data: r.ByteArray(r.Remaining())}
+	})
+	item.Removed = protocol.ReadList(r, r.Remaining(), r.VarInt)
 
 	return item
 }

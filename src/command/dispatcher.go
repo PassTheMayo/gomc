@@ -1,10 +1,6 @@
 package command
 
 import (
-	"fmt"
-	"strconv"
-	"strings"
-
 	"main/src/packet"
 	"main/src/text"
 )
@@ -23,7 +19,7 @@ type Dispatcher struct {
 // Register adds a command whose root must be a literal. Restricted commands
 // are only visible to and usable by operators.
 func (d *Dispatcher) Register(root *Node, restricted bool) {
-	if !root.literal {
+	if !root.isLiteral() {
 		panic("command: the root of a command must be a literal")
 	}
 
@@ -45,18 +41,14 @@ func (d *Dispatcher) visible(src Source) []command {
 // Execute parses and runs a command line typed without the leading slash.
 // Errors are reported to the source with the client's own translations.
 func (d *Dispatcher) Execute(src Source, line string) {
-	words := strings.Fields(line)
+	r := NewReader(line)
+	name := r.ReadWord()
 	unknown := text.Translatable("command.unknown.command").Colored(text.Red)
-
-	if len(words) == 0 {
-		src.Reply(unknown)
-		return
-	}
 
 	var node *Node
 
 	for _, c := range d.visible(src) {
-		if c.root.name == words[0] {
+		if c.root.name == name {
 			node = c.root
 		}
 	}
@@ -66,10 +58,10 @@ func (d *Dispatcher) Execute(src Source, line string) {
 		return
 	}
 
-	ctx := &Context{Source: src, ints: make(map[string]int32)}
+	ctx := &Context{Source: src, values: make(map[string]any)}
 
-	for _, word := range words[1:] {
-		next, err := node.match(word, ctx)
+	for !r.AtEnd() {
+		next, err := node.parseChild(r, ctx)
 
 		if err != nil {
 			src.Reply(err.Colored(text.Red))
@@ -87,37 +79,32 @@ func (d *Dispatcher) Execute(src Source, line string) {
 	node.run(ctx)
 }
 
-// match finds the child of n that accepts word, preferring literals, and
-// stores argument values in ctx.
-func (n *Node) match(word string, ctx *Context) (*Node, *text.Component) {
+// parseChild reads the next part of the command with the child of n that
+// accepts it, preferring literals, and stores argument values in ctx.
+func (n *Node) parseChild(r *Reader, ctx *Context) (*Node, *text.Component) {
+	word := r.PeekWord()
+
 	for _, child := range n.children {
-		if child.literal && child.name == word {
+		if child.isLiteral() && child.name == word {
+			r.ReadWord()
 			return child, nil
 		}
 	}
 
 	for _, child := range n.children {
-		if child.literal {
+		if child.isLiteral() {
 			continue
 		}
 
-		v, err := strconv.ParseInt(word, 10, 32)
+		v, err := child.arg.Parse(r)
 
-		var msg text.Component
-
-		switch {
-		case err != nil:
-			msg = text.Translatable("parsing.int.invalid", text.Text(word))
-		case v < int64(child.min):
-			msg = text.Translatable("argument.integer.low", text.Text(fmt.Sprint(child.min)), text.Text(word))
-		case v > int64(child.max):
-			msg = text.Translatable("argument.integer.big", text.Text(fmt.Sprint(child.max)), text.Text(word))
-		default:
-			ctx.ints[child.name] = int32(v)
-			return child, nil
+		if err != nil {
+			return nil, err
 		}
 
-		return nil, &msg
+		ctx.values[child.name] = v
+
+		return child, nil
 	}
 
 	msg := text.Translatable("command.unknown.argument")
@@ -136,10 +123,11 @@ func (d *Dispatcher) Tree(src Source) *packet.Commands {
 		index := int32(len(p.Nodes))
 		node := packet.CommandNode{Name: n.name, Executable: n.run != nil, Restricted: restricted}
 
-		if n.literal {
+		if n.isLiteral() {
 			node.Type = packet.NodeLiteral
 		} else {
-			node.Type, node.Parser, node.Min, node.Max = packet.NodeArgument, packet.ParserInteger, n.min, n.max
+			node.Type = packet.NodeArgument
+			node.Parser, node.Properties = n.arg.Parser()
 		}
 
 		p.Nodes = append(p.Nodes, node)

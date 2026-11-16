@@ -98,7 +98,7 @@ type Login struct {
 func (p *Login) Encode(w *protocol.Writer) {
 	w.Int(p.EntityID)
 	w.Bool(p.Hardcore)
-	writeList(w, p.Dimensions, w.String)
+	protocol.WriteList(w, p.Dimensions, w.String)
 	w.VarInt(p.MaxPlayers)
 	w.VarInt(p.ViewDistance)
 	w.VarInt(p.SimulationDistance)
@@ -113,7 +113,7 @@ func (p *Login) Encode(w *protocol.Writer) {
 func (p *Login) Decode(r *protocol.Reader) {
 	p.EntityID = r.Int()
 	p.Hardcore = r.Bool()
-	p.Dimensions = readList(r, r.Remaining(), func() string { return r.String(32767) })
+	p.Dimensions = protocol.ReadList(r, r.Remaining(), func() string { return r.String(32767) })
 	p.MaxPlayers = r.VarInt()
 	p.ViewDistance = r.VarInt()
 	p.SimulationDistance = r.VarInt()
@@ -180,7 +180,7 @@ type SetTime struct {
 
 func (p *SetTime) Encode(w *protocol.Writer) {
 	w.Long(p.GameTime)
-	writeList(w, p.Clocks, func(c ClockState) {
+	protocol.WriteList(w, p.Clocks, func(c ClockState) {
 		w.VarInt(c.Clock)
 		w.VarLong(c.TotalTicks)
 		w.Float(c.PartialTick)
@@ -190,7 +190,7 @@ func (p *SetTime) Encode(w *protocol.Writer) {
 
 func (p *SetTime) Decode(r *protocol.Reader) {
 	p.GameTime = r.Long()
-	p.Clocks = readList(r, r.Remaining(), func() ClockState {
+	p.Clocks = protocol.ReadList(r, r.Remaining(), func() ClockState {
 		return ClockState{Clock: r.VarInt(), TotalTicks: r.VarLong(), PartialTick: r.Float(), Rate: r.Float()}
 	})
 }
@@ -231,8 +231,8 @@ func (l *LightData) encode(w *protocol.Writer) {
 	w.BitSet(l.BlockMask)
 	w.BitSet(l.EmptySkyMask)
 	w.BitSet(l.EmptyBlockMask)
-	writeList(w, l.SkyLight, w.ByteArray)
-	writeList(w, l.BlockLight, w.ByteArray)
+	protocol.WriteList(w, l.SkyLight, w.ByteArray)
+	protocol.WriteList(w, l.BlockLight, w.ByteArray)
 }
 
 func (l *LightData) decode(r *protocol.Reader) {
@@ -240,8 +240,8 @@ func (l *LightData) decode(r *protocol.Reader) {
 	l.BlockMask = r.BitSet(r.Remaining())
 	l.EmptySkyMask = r.BitSet(r.Remaining())
 	l.EmptyBlockMask = r.BitSet(r.Remaining())
-	l.SkyLight = readList(r, r.Remaining(), func() []byte { return r.ByteArray(2048) })
-	l.BlockLight = readList(r, r.Remaining(), func() []byte { return r.ByteArray(2048) })
+	l.SkyLight = protocol.ReadList(r, r.Remaining(), func() []byte { return r.ByteArray(2048) })
+	l.BlockLight = protocol.ReadList(r, r.Remaining(), func() []byte { return r.ByteArray(2048) })
 }
 
 // LevelChunkWithLight sends a full chunk column.
@@ -256,12 +256,12 @@ type LevelChunkWithLight struct {
 func (p *LevelChunkWithLight) Encode(w *protocol.Writer) {
 	w.Int(p.X)
 	w.Int(p.Z)
-	writeList(w, p.Heightmaps, func(h Heightmap) {
+	protocol.WriteList(w, p.Heightmaps, func(h Heightmap) {
 		w.VarInt(h.Type)
 		w.LongArray(h.Data)
 	})
 	w.ByteArray(p.Data)
-	writeList(w, p.BlockEntities, func(be BlockEntity) {
+	protocol.WriteList(w, p.BlockEntities, func(be BlockEntity) {
 		w.UByte(be.PackedXZ)
 		w.Short(be.Y)
 		w.VarInt(be.Type)
@@ -278,11 +278,11 @@ func (p *LevelChunkWithLight) Encode(w *protocol.Writer) {
 func (p *LevelChunkWithLight) Decode(r *protocol.Reader) {
 	p.X = r.Int()
 	p.Z = r.Int()
-	p.Heightmaps = readList(r, 16, func() Heightmap {
+	p.Heightmaps = protocol.ReadList(r, 16, func() Heightmap {
 		return Heightmap{Type: r.VarInt(), Data: r.LongArray(r.Remaining() / 8)}
 	})
 	p.Data = r.ByteArray(2097152)
-	p.BlockEntities = readList(r, r.Remaining(), func() BlockEntity {
+	p.BlockEntities = protocol.ReadList(r, r.Remaining(), func() BlockEntity {
 		return BlockEntity{PackedXZ: r.UByte(), Y: r.Short(), Type: r.VarInt(), Data: readOptionalNBTBytes(r)}
 	})
 	p.Light.decode(r)

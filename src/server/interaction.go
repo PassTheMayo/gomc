@@ -44,11 +44,21 @@ func (s snapshot) overlaps(pos packet.BlockPos) bool {
 	return s.X+half > bx && s.X-half < bx+1 && s.Y+playerHeight > by && s.Y < by+1 && s.Z+half > bz && s.Z-half < bz+1
 }
 
+// registerBuilding handles placing and breaking blocks.
+func (s *Server) registerBuilding() {
+	on(&s.router, s.handleDigging)
+	on(&s.router, s.handleUseItemOn)
+}
+
 // handleDigging breaks blocks. Creative players break instantly; survival
 // players report when they finish digging, except for plants and other
 // blocks that break on the first hit.
 func (s *Server) handleDigging(p *Player, pk *packet.PlayerAction) {
-	defer p.send(&packet.BlockChangedAck{Sequence: pk.Sequence})
+	if !pk.IsDigging() {
+		return
+	}
+
+	defer p.Send(&packet.BlockChangedAck{Sequence: pk.Sequence})
 
 	current, loaded := s.world.Block(int(pk.Pos.X), int(pk.Pos.Y), int(pk.Pos.Z))
 
@@ -98,7 +108,7 @@ func removedState(s block.StateID) block.StateID {
 // handleUseItemOn places the block item held in the used hand against the
 // clicked face.
 func (s *Server) handleUseItemOn(p *Player, pk *packet.UseItemOn) {
-	defer p.send(&packet.BlockChangedAck{Sequence: pk.Sequence})
+	defer p.Send(&packet.BlockChangedAck{Sequence: pk.Sequence})
 
 	if pk.Face < int32(block.Down) || pk.Face > int32(block.East) || !p.canEditBlocks() {
 		return
@@ -176,14 +186,9 @@ func (s *Server) canPlaceAt(pos packet.BlockPos, state block.StateID, players []
 // broadcastBlockChange sends a changed block to every player whose view
 // includes its chunk. It runs while the chunk is locked; see World.BlockChanged.
 func (s *Server) broadcastBlockChange(x, y, z int, state block.StateID) {
-	chunk := world.ChunkPos{X: int32(x >> 4), Z: int32(z >> 4)}
 	update := &packet.BlockUpdate{Pos: packet.BlockPos{X: int32(x), Y: int32(y), Z: int32(z)}, State: int32(state)}
 
-	for _, p := range s.joinedPlayers() {
-		snap := p.snapshot()
-
-		if inView(snap.chunkPos(), snap.ViewDistance, chunk) {
-			p.send(update)
-		}
+	for _, p := range s.viewers(world.ChunkPos{X: int32(x >> 4), Z: int32(z >> 4)}) {
+		p.Send(update)
 	}
 }

@@ -80,7 +80,7 @@ var errChatSession = errors.New("packet: chat session player info is not support
 
 func (p *PlayerInfoUpdate) Encode(w *protocol.Writer) {
 	w.UByte(p.Actions)
-	writeList(w, p.Entries, func(e PlayerInfoEntry) {
+	protocol.WriteList(w, p.Entries, func(e PlayerInfoEntry) {
 		w.UUID(e.Profile.ID)
 
 		if p.Actions&InfoAddPlayer != 0 {
@@ -124,7 +124,7 @@ func (p *PlayerInfoUpdate) Encode(w *protocol.Writer) {
 
 func (p *PlayerInfoUpdate) Decode(r *protocol.Reader) {
 	p.Actions = r.UByte()
-	p.Entries = readList(r, r.Remaining(), func() PlayerInfoEntry {
+	p.Entries = protocol.ReadList(r, r.Remaining(), func() PlayerInfoEntry {
 		e := PlayerInfoEntry{Profile: profile.GameProfile{ID: r.UUID()}}
 
 		if p.Actions&InfoAddPlayer != 0 {
@@ -171,11 +171,11 @@ type PlayerInfoRemove struct {
 }
 
 func (p *PlayerInfoRemove) Encode(w *protocol.Writer) {
-	writeList(w, p.UUIDs, w.UUID)
+	protocol.WriteList(w, p.UUIDs, w.UUID)
 }
 
 func (p *PlayerInfoRemove) Decode(r *protocol.Reader) {
-	p.UUIDs = readList(r, r.Remaining(), r.UUID)
+	p.UUIDs = protocol.ReadList(r, r.Remaining(), r.UUID)
 }
 
 // SystemChat shows a server message in chat or, with Overlay, above the hotbar.

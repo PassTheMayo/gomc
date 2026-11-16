@@ -21,6 +21,8 @@ import (
 	"main/src/block"
 	"main/src/config"
 	"main/src/conn"
+	"main/src/inventory"
+	"main/src/item"
 	"main/src/packet"
 	"main/src/protocol"
 	"main/src/registry"
@@ -67,6 +69,22 @@ func startServer(t *testing.T, conf *config.Config) (*Server, string) {
 	t.Cleanup(func() { _ = srv.Shutdown() })
 
 	return srv, ln.Addr().String()
+}
+
+// stopWhenEmpty waits for every player to leave, so their data is saved, then
+// shuts the server down.
+func stopWhenEmpty(t *testing.T, srv *Server) {
+	t.Helper()
+
+	deadline := time.Now().Add(5 * time.Second)
+
+	for srv.playerCount() > 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	if err := srv.Shutdown(); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // testClient is a minimal Minecraft client driving the server under test.
@@ -327,7 +345,7 @@ func TestJoinAndMovement(t *testing.T) {
 
 	for dx := int32(-4); dx <= 4; dx++ {
 		for dz := int32(-4); dz <= 4; dz++ {
-			if inView(spawnChunk, 3, world.ChunkPos{X: spawnChunk.X + dx, Z: spawnChunk.Z + dz}) {
+			if world.InView(spawnChunk, 3, world.ChunkPos{X: spawnChunk.X + dx, Z: spawnChunk.Z + dz}) {
 				expected++
 			}
 		}
@@ -417,17 +435,8 @@ func TestPersistence(t *testing.T) {
 	waitFor[*packet.ChunkBatchFinished](a, nil)
 	a.conn.Close()
 
-	deadline := time.Now().Add(5 * time.Second)
-
-	for srv.playerCount() > 0 && time.Now().Before(deadline) {
-		time.Sleep(10 * time.Millisecond)
-	}
-
 	seed := srv.level.Seed
-
-	if err := srv.Shutdown(); err != nil {
-		t.Fatal(err)
-	}
+	stopWhenEmpty(t, srv)
 
 	regions, _ := filepath.Glob(filepath.Join(dir, "regions", "*.region"))
 
@@ -689,9 +698,9 @@ func TestBlockEditing(t *testing.T) {
 	waitFor[*packet.PlayerPosition](b, nil)
 
 	// Alice takes stone, a door and a chest from the creative inventory.
-	a.send(&packet.SetCreativeModeSlot{Slot: 36, Stack: packet.ItemStack{Count: 1, Item: items.MustID("minecraft:stone")}})
-	a.send(&packet.SetCreativeModeSlot{Slot: 37, Stack: packet.ItemStack{Count: 1, Item: items.MustID("minecraft:oak_door")}})
-	a.send(&packet.SetCreativeModeSlot{Slot: 38, Stack: packet.ItemStack{Count: 1, Item: items.MustID("minecraft:chest")}})
+	a.send(&packet.SetCreativeModeSlot{Slot: 36, Stack: item.Stack{Count: 1, Item: items.MustID("minecraft:stone")}})
+	a.send(&packet.SetCreativeModeSlot{Slot: 37, Stack: item.Stack{Count: 1, Item: items.MustID("minecraft:oak_door")}})
+	a.send(&packet.SetCreativeModeSlot{Slot: 38, Stack: item.Stack{Count: 1, Item: items.MustID("minecraft:chest")}})
 
 	stonePos := a.placeOnGround(0, x+2, z, 1)
 	update := waitFor[*packet.BlockUpdate](a, isBlockUpdate(stonePos))
@@ -736,15 +745,7 @@ func TestBlockEditing(t *testing.T) {
 	a.conn.Close()
 	b.conn.Close()
 
-	deadline := time.Now().Add(5 * time.Second)
-
-	for srv.playerCount() > 0 && time.Now().Before(deadline) {
-		time.Sleep(10 * time.Millisecond)
-	}
-
-	if err := srv.Shutdown(); err != nil {
-		t.Fatal(err)
-	}
+	stopWhenEmpty(t, srv)
 
 	// After a restart the changes are still there.
 	_, addr2 := startServer(t, testConfig(dir))
@@ -793,8 +794,8 @@ func TestInventory(t *testing.T) {
 	a := dial(t, addr)
 	a.login("Alice")
 
-	if content := waitFor[*packet.ContainerSetContent](a, nil); len(content.Items) != inventorySize {
-		t.Fatalf("inventory sent with %d slots, want %d", len(content.Items), inventorySize)
+	if content := waitFor[*packet.ContainerSetContent](a, nil); len(content.Items) != inventory.MenuSize {
+		t.Fatalf("inventory sent with %d slots, want %d", len(content.Items), inventory.MenuSize)
 	}
 
 	waitFor[*packet.PlayerPosition](a, nil)
@@ -802,14 +803,14 @@ func TestInventory(t *testing.T) {
 
 	// Alice places a log and a stone block, then moves the logs to her main
 	// inventory.
-	a.send(&packet.SetCreativeModeSlot{Slot: 36, Stack: packet.ItemStack{Count: 64, Item: stone}})
-	a.send(&packet.SetCreativeModeSlot{Slot: 37, Stack: packet.ItemStack{Count: 5, Item: log}})
+	a.send(&packet.SetCreativeModeSlot{Slot: 36, Stack: item.Stack{Count: 64, Item: stone}})
+	a.send(&packet.SetCreativeModeSlot{Slot: 37, Stack: item.Stack{Count: 5, Item: log}})
 	logPos := a.placeOnGround(1, x-2, z, 1)
 	stonePos := a.placeOnGround(0, x+2, z, 2)
 	waitFor[*packet.BlockUpdate](a, isBlockUpdate(logPos))
 	waitFor[*packet.BlockUpdate](a, isBlockUpdate(stonePos))
 	a.send(&packet.SetCreativeModeSlot{Slot: 37})
-	a.send(&packet.SetCreativeModeSlot{Slot: 20, Stack: packet.ItemStack{Count: 5, Item: log}})
+	a.send(&packet.SetCreativeModeSlot{Slot: 20, Stack: item.Stack{Count: 5, Item: log}})
 
 	pick := func(pos packet.BlockPos, held int32, changed ...packet.ContainerSetSlot) {
 		t.Helper()
@@ -832,7 +833,7 @@ func TestInventory(t *testing.T) {
 
 	// The logs are swapped into the first empty hotbar slot from the selected one.
 	pick(logPos, 1,
-		packet.ContainerSetSlot{Slot: 37, Stack: packet.ItemStack{Count: 5, Item: log}},
+		packet.ContainerSetSlot{Slot: 37, Stack: item.Stack{Count: 5, Item: log}},
 		packet.ContainerSetSlot{Slot: 20})
 
 	// Alice drops one log, then all of her stone.
@@ -841,20 +842,12 @@ func TestInventory(t *testing.T) {
 	a.send(&packet.PlayerAction{Action: packet.ActionDropAllItems})
 
 	// A creative player picking stone it no longer has gets one.
-	pick(stonePos, 0, packet.ContainerSetSlot{Slot: 36, Stack: packet.ItemStack{Count: 1, Item: stone}})
+	pick(stonePos, 0, packet.ContainerSetSlot{Slot: 36, Stack: item.Stack{Count: 1, Item: stone}})
 
 	a.send(&packet.SetCarriedItem{Slot: 1})
 	a.conn.Close()
 
-	deadline := time.Now().Add(5 * time.Second)
-
-	for srv.playerCount() > 0 && time.Now().Before(deadline) {
-		time.Sleep(10 * time.Millisecond)
-	}
-
-	if err := srv.Shutdown(); err != nil {
-		t.Fatal(err)
-	}
+	stopWhenEmpty(t, srv)
 
 	// After a restart Alice gets her inventory and hotbar slot back.
 	_, addr2 := startServer(t, testConfig(dir))
@@ -865,9 +858,9 @@ func TestInventory(t *testing.T) {
 		t.Errorf("hotbar slot %d restored, want 1", held.Slot)
 	}
 
-	want := make([]packet.ItemStack, inventorySize)
-	want[36] = packet.ItemStack{Count: 1, Item: stone}
-	want[37] = packet.ItemStack{Count: 4, Item: log}
+	want := make([]item.Stack, inventory.MenuSize)
+	want[36] = item.Stack{Count: 1, Item: stone}
+	want[37] = item.Stack{Count: 4, Item: log}
 
 	if content := waitFor[*packet.ContainerSetContent](b, nil); !reflect.DeepEqual(content.Items, want) {
 		t.Fatalf("inventory restored as %+v, want %+v", content.Items, want)
@@ -882,5 +875,19 @@ func TestPickItemsExist(t *testing.T) {
 				t.Fatalf("%s is picked as unknown item %s", s, name)
 			}
 		}
+	}
+}
+
+// A handler's kick error disconnects the player with its reason.
+func TestInvalidMovementKick(t *testing.T) {
+	_, addr := startServer(t, testConfig(t.TempDir()))
+	a := dial(t, addr)
+	a.login("Alice")
+	waitFor[*packet.PlayerPosition](a, nil)
+
+	a.send(&packet.MovePlayerPos{X: math.NaN(), Y: 70, Z: 0})
+
+	if kick := waitFor[*packet.Disconnect](a, nil); kick.Reason.Translate != "multiplayer.disconnect.invalid_player_movement" {
+		t.Fatalf("disconnected with %+v", kick.Reason)
 	}
 }

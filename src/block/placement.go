@@ -152,7 +152,7 @@ func (b *Block) Place(ctx PlaceContext) []Placement {
 				props["face"], props["facing"] = "wall", ctx.Face.Name()
 			}
 		case p.Name == "facing" && props["facing"] == "":
-			props["facing"] = target.facingFor(ctx, facing, p.Values).Name()
+			props["facing"] = target.hooks.facing(target, ctx, facing).Name()
 		case p.Name == "half" && slices.Contains(p.Values, "top"):
 			props["half"] = pick(top, "top", "bottom")
 		case p.Name == "half":
@@ -192,26 +192,6 @@ func (b *Block) Place(ctx PlaceContext) []Placement {
 	}
 
 	return out
-}
-
-// facingFor picks the facing of a newly placed block.
-func (b *Block) facingFor(ctx PlaceContext, player Direction, values []string) Direction {
-	name := b.Name
-
-	switch {
-	case len(values) == 6 && (strings.HasSuffix(name, "_rod") || strings.Contains(name, "amethyst")):
-		return ctx.Face
-	case len(values) == 6:
-		return lookDirection(ctx.Yaw, ctx.Pitch).Opposite()
-	case strings.HasSuffix(name, "_trapdoor") && ctx.Face.horizontal():
-		return ctx.Face
-	case strings.HasSuffix(name, "_stairs"), strings.HasSuffix(name, "_door"), strings.HasSuffix(name, "_fence_gate"),
-		strings.HasSuffix(name, "_bed"):
-		return player
-	}
-
-	// Most directional blocks, like furnaces and chests, face the player.
-	return player.Opposite()
 }
 
 // wallVariant returns the block placed when b is attached to a wall, such as

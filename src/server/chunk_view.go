@@ -2,7 +2,6 @@ package server
 
 import (
 	"math"
-	"slices"
 	"sync"
 	"time"
 
@@ -11,6 +10,12 @@ import (
 )
 
 const (
+	// unloadTicks is how often idle chunks are unloaded.
+	unloadTicks = 600
+
+	// chunkIdleTime is how long a chunk stays loaded without viewers.
+	chunkIdleTime = 30 * time.Second
+
 	// maxUnackedBatches is how many chunk batches may be in flight before the
 	// server waits for the client to acknowledge them.
 	maxUnackedBatches = 10
@@ -42,6 +47,13 @@ type chunkView struct {
 	sent map[world.ChunkPos]struct{}
 }
 
+// registerChunkStreaming paces chunk batches by the client's acknowledgements
+// and unloads chunks nobody has viewed for a while.
+func (s *Server) registerChunkStreaming() {
+	on(&s.router, func(p *Player, pk *packet.ChunkBatchReceived) { p.chunks.acknowledge(pk.DesiredChunksPerTick) })
+	s.ticks.everyAsync(unloadTicks, &s.wg, func(*tick) { s.world.UnloadIdle(chunkIdleTime) })
+}
+
 func newChunkView(p *Player, w *world.World, center world.ChunkPos, radius int) *chunkView {
 	return &chunkView{
 		player:  p,
@@ -56,29 +68,12 @@ func newChunkView(p *Player, w *world.World, center world.ChunkPos, radius int) 
 	}
 }
 
-// inView reports whether pos is within radius of center, using the same
-// rounded square as the vanilla server.
-func inView(center world.ChunkPos, radius int, pos world.ChunkPos) bool {
-	dx := max(0, abs32(pos.X-center.X)-1)
-	dz := max(0, abs32(pos.Z-center.Z)-1)
-
-	return int(dx*dx+dz*dz) < radius*radius
-}
-
-func abs32(v int32) int32 {
-	if v < 0 {
-		return -v
-	}
-
-	return v
-}
-
 func (v *chunkView) start() {
 	v.mu.Lock()
 	center := v.center
 	v.mu.Unlock()
 
-	v.player.send(&packet.SetChunkCacheCenter{X: center.X, Z: center.Z})
+	v.player.Send(&packet.SetChunkCacheCenter{X: center.X, Z: center.Z})
 
 	go v.run()
 }
@@ -108,7 +103,7 @@ func (v *chunkView) moveTo(center world.ChunkPos) {
 	v.mu.Unlock()
 
 	if changed {
-		v.player.send(&packet.SetChunkCacheCenter{X: center.X, Z: center.Z})
+		v.player.Send(&packet.SetChunkCacheCenter{X: center.X, Z: center.Z})
 		v.notify()
 	}
 }
@@ -160,8 +155,8 @@ func (v *chunkView) update() {
 	v.mu.Unlock()
 
 	for pos := range v.sent {
-		if !inView(center, radius, pos) {
-			v.player.send(&packet.ForgetLevelChunk{X: pos.X, Z: pos.Z})
+		if !world.InView(center, radius, pos) {
+			v.player.Send(&packet.ForgetLevelChunk{X: pos.X, Z: pos.Z})
 			v.world.Release(pos)
 			delete(v.sent, pos)
 		}
@@ -171,31 +166,20 @@ func (v *chunkView) update() {
 		return
 	}
 
-	var missing []world.ChunkPos
-	r := int32(radius + 1)
+	size := max(1, int(math.Ceil(float64(rate))))
+	var batch []world.ChunkPos
 
-	for x := center.X - r; x <= center.X+r; x++ {
-		for z := center.Z - r; z <= center.Z+r; z++ {
-			pos := world.ChunkPos{X: x, Z: z}
-
-			if _, ok := v.sent[pos]; !ok && inView(center, radius, pos) {
-				missing = append(missing, pos)
+	for pos := range world.InViewNearestFirst(center, radius) {
+		if _, ok := v.sent[pos]; !ok {
+			if batch = append(batch, pos); len(batch) == size {
+				break
 			}
 		}
 	}
 
-	if len(missing) == 0 {
+	if len(batch) == 0 {
 		return
 	}
-
-	distance := func(p world.ChunkPos) int32 {
-		dx, dz := p.X-center.X, p.Z-center.Z
-		return dx*dx + dz*dz
-	}
-
-	slices.SortFunc(missing, func(a, b world.ChunkPos) int { return int(distance(a) - distance(b)) })
-
-	batch := missing[:min(len(missing), max(1, int(math.Ceil(float64(rate)))))]
 	chunks := make([]*world.Chunk, len(batch))
 
 	var wg sync.WaitGroup
@@ -206,14 +190,14 @@ func (v *chunkView) update() {
 
 	wg.Wait()
 
-	v.player.send(&packet.ChunkBatchStart{})
+	v.player.Send(&packet.ChunkBatchStart{})
 
 	for i, c := range chunks {
-		c.SendPacket(func(p *packet.LevelChunkWithLight) { v.player.send(p) })
+		c.SendPacket(func(p *packet.LevelChunkWithLight) { v.player.Send(p) })
 		v.sent[batch[i]] = struct{}{}
 	}
 
-	v.player.send(&packet.ChunkBatchFinished{BatchSize: int32(len(chunks))})
+	v.player.Send(&packet.ChunkBatchFinished{BatchSize: int32(len(chunks))})
 
 	v.mu.Lock()
 	v.unacked++

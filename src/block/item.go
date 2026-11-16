@@ -4,7 +4,6 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
-	"strings"
 )
 
 // items.json maps every block item to the block it places. An empty value
@@ -17,26 +16,6 @@ var itemsJSON []byte
 //
 //go:embed entities.json
 var entitiesJSON []byte
-
-// pickedItems maps blocks without an item of their own to the item vanilla
-// gives for them in getCloneItemStack, or in the Items class when the item
-// also places the block. Potted plants, candle cakes and wall-mounted
-// variants follow rules instead.
-var pickedItems = map[string]string{
-	"water_cauldron":        "cauldron",
-	"lava_cauldron":         "cauldron",
-	"powder_snow_cauldron":  "cauldron",
-	"big_dripleaf_stem":     "big_dripleaf",
-	"tall_seagrass":         "seagrass",
-	"attached_pumpkin_stem": "pumpkin_seeds",
-	"attached_melon_stem":   "melon_seeds",
-	"kelp_plant":            "kelp",
-	"weeping_vines_plant":   "weeping_vines",
-	"twisting_vines_plant":  "twisting_vines",
-	"cave_vines_plant":      "glow_berries",
-	"bamboo_sapling":        "bamboo",
-	"piston_head":           "piston",
-}
 
 var (
 	itemBlocks  = make(map[string]*Block)
@@ -71,12 +50,6 @@ func initItemsAndEntities() {
 		}
 	}
 
-	for _, b := range blocks {
-		if blockItems[b.ID] == "" {
-			blockItems[b.ID] = pickedItem(b)
-		}
-	}
-
 	var entities map[string]string
 
 	if err := json.Unmarshal(entitiesJSON, &entities); err != nil {
@@ -99,45 +72,17 @@ func ForItem(item string) (*Block, bool) {
 	return b, ok
 }
 
-// pickedItem returns the item picked from a block that is not placed by an
-// item, or "" if it has none.
-func pickedItem(b *Block) string {
-	name := strings.TrimPrefix(b.Name, "minecraft:")
-
-	switch {
-	case pickedItems[name] != "":
-		return "minecraft:" + pickedItems[name]
-	case strings.HasSuffix(name, "candle_cake"):
-		return "minecraft:cake"
-	case strings.HasPrefix(name, "potted_"):
-		plant := strings.TrimPrefix(name, "potted_")
-
-		// potted_azalea_bush holds an azalea.
-		if _, ok := byName["minecraft:"+plant]; !ok {
-			plant = strings.TrimSuffix(plant, "_bush")
-		}
-
-		if p, ok := byName["minecraft:"+plant]; ok {
-			return blockItems[p.ID]
-		}
-	}
-
-	return ""
-}
-
 // PickItem returns the item a player gets by middle-clicking state s, if any.
 func PickItem(s StateID) (string, bool) {
 	b := ByState(s)
 
-	if b == nil || blockItems[b.ID] == "" {
+	if b == nil {
 		return "", false
 	}
 
-	if b.Name == "minecraft:piston_head" && b.StateValues(s)["type"] == "sticky" {
-		return "minecraft:sticky_piston", true
-	}
+	item := b.hooks.pickItem(b, s)
 
-	return blockItems[b.ID], true
+	return item, item != ""
 }
 
 // EntityType returns the block entity type of state s, if it has one.

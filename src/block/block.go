@@ -33,6 +33,8 @@ type Block struct {
 	FirstState   StateID
 	DefaultState StateID
 	StateCount   int
+
+	hooks hooks
 }
 
 var (
@@ -83,8 +85,9 @@ func init() {
 		}
 	}
 
-	initBehaviors()
+	initPhysics()
 	initItemsAndEntities()
+	resolveHooks()
 	waterSource = MustParse("water[level=0]")
 }
 

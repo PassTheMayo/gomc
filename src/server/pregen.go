@@ -41,8 +41,8 @@ func (j *pregenJob) stop() {
 	j.cancelOnce.Do(func() { close(j.cancel) })
 }
 
-// registerCommands adds the server's commands to its dispatcher.
-func (s *Server) registerCommands() {
+// registerPregen adds /pregen, which generates chunks ahead of time.
+func (s *Server) registerPregen() {
 	s.commands.Register(command.Literal("pregen",
 		command.Integer("radius", 1, maxPregenRadius).Executes(s.startPregen),
 		command.Literal("cancel").Executes(s.cancelPregen),
@@ -146,7 +146,7 @@ func (s *Server) pregenerate(job *pregenJob) {
 	stopped := false
 
 	for r := int32(0); r <= int32(job.radius) && !stopped; r++ {
-		for _, pos := range ring(job.center, r) {
+		for _, pos := range world.Ring(job.center, r) {
 			select {
 			case positions <- pos:
 				continue
@@ -211,25 +211,6 @@ func (s *Server) notifyPregenOwner(job *pregenJob, msg packet.Packet) {
 	s.mu.RUnlock()
 
 	if owner != nil && owner.joined.Load() {
-		owner.send(msg)
+		owner.Send(msg)
 	}
-}
-
-// ring returns the chunks exactly r chunks from center along either axis.
-func ring(center world.ChunkPos, r int32) []world.ChunkPos {
-	if r == 0 {
-		return []world.ChunkPos{center}
-	}
-
-	out := make([]world.ChunkPos, 0, 8*r)
-
-	for d := -r; d <= r; d++ {
-		out = append(out, world.ChunkPos{X: center.X + d, Z: center.Z - r}, world.ChunkPos{X: center.X + d, Z: center.Z + r})
-	}
-
-	for d := -r + 1; d <= r-1; d++ {
-		out = append(out, world.ChunkPos{X: center.X - r, Z: center.Z + d}, world.ChunkPos{X: center.X + r, Z: center.Z + d})
-	}
-
-	return out
 }

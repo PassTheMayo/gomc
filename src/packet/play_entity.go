@@ -204,11 +204,11 @@ type RemoveEntities struct {
 }
 
 func (p *RemoveEntities) Encode(w *protocol.Writer) {
-	writeList(w, p.EntityIDs, w.VarInt)
+	protocol.WriteList(w, p.EntityIDs, w.VarInt)
 }
 
 func (p *RemoveEntities) Decode(r *protocol.Reader) {
-	p.EntityIDs = readList(r, r.Remaining(), r.VarInt)
+	p.EntityIDs = protocol.ReadList(r, r.Remaining(), r.VarInt)
 }
 
 // Entity data serializer IDs.

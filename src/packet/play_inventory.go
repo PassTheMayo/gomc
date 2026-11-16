@@ -1,6 +1,9 @@
 package packet
 
-import "main/src/protocol"
+import (
+	"main/src/item"
+	"main/src/protocol"
+)
 
 // InventoryContainer is the container ID of the player's own inventory menu.
 const InventoryContainer int32 = 0
@@ -18,17 +21,17 @@ func (p *SetCarriedItem) Decode(r *protocol.Reader) { p.Slot = r.Short() }
 // inventory, 36 to 44 the hotbar and 45 the off hand.
 type SetCreativeModeSlot struct {
 	Slot  int16
-	Stack ItemStack
+	Stack item.Stack
 }
 
 func (p *SetCreativeModeSlot) Encode(w *protocol.Writer) {
 	w.Short(p.Slot)
-	p.Stack.encodeDelimited(w)
+	writeDelimitedStack(w, p.Stack)
 }
 
 func (p *SetCreativeModeSlot) Decode(r *protocol.Reader) {
 	p.Slot = r.Short()
-	p.Stack.decodeDelimited(r)
+	p.Stack = readDelimitedStack(r)
 }
 
 // PickItemFromBlock asks for the item of a block, sent when the player
@@ -61,27 +64,22 @@ func (p *SetHeldSlot) Decode(r *protocol.Reader) { p.Slot = r.VarInt() }
 type ContainerSetContent struct {
 	ContainerID int32
 	StateID     int32
-	Items       []ItemStack
-	Carried     ItemStack
+	Items       []item.Stack
+	Carried     item.Stack
 }
 
 func (p *ContainerSetContent) Encode(w *protocol.Writer) {
 	w.VarInt(p.ContainerID)
 	w.VarInt(p.StateID)
-	writeList(w, p.Items, func(s ItemStack) { s.encode(w) })
-	p.Carried.encode(w)
+	protocol.WriteList(w, p.Items, func(s item.Stack) { writeStack(w, s) })
+	writeStack(w, p.Carried)
 }
 
 func (p *ContainerSetContent) Decode(r *protocol.Reader) {
 	p.ContainerID = r.VarInt()
 	p.StateID = r.VarInt()
-	p.Items = readList(r, r.Remaining(), func() ItemStack {
-		var s ItemStack
-		s.decode(r)
-
-		return s
-	})
-	p.Carried.decode(r)
+	p.Items = protocol.ReadList(r, r.Remaining(), func() item.Stack { return readStack(r) })
+	p.Carried = readStack(r)
 }
 
 // ContainerSetSlot changes one slot of a container.
@@ -89,19 +87,19 @@ type ContainerSetSlot struct {
 	ContainerID int32
 	StateID     int32
 	Slot        int16
-	Stack       ItemStack
+	Stack       item.Stack
 }
 
 func (p *ContainerSetSlot) Encode(w *protocol.Writer) {
 	w.VarInt(p.ContainerID)
 	w.VarInt(p.StateID)
 	w.Short(p.Slot)
-	p.Stack.encode(w)
+	writeStack(w, p.Stack)
 }
 
 func (p *ContainerSetSlot) Decode(r *protocol.Reader) {
 	p.ContainerID = r.VarInt()
 	p.StateID = r.VarInt()
 	p.Slot = r.Short()
-	p.Stack.decode(r)
+	p.Stack = readStack(r)
 }

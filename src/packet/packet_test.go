@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"main/src/item"
 	"main/src/nbt"
 	"main/src/profile"
 	"main/src/protocol"
@@ -74,7 +75,7 @@ func TestRoundTrip(t *testing.T) {
 			&PlayerAction{Action: ActionStopDestroyBlock, Pos: BlockPos{X: -5, Y: -60, Z: 300}, Face: 1, Sequence: 12},
 			&UseItemOn{Hand: HandOff, Pos: BlockPos{X: 1, Y: 2, Z: 3}, Face: 4, CursorX: 0.5, CursorY: 1, CursorZ: 0.25, Inside: true, Sequence: 99},
 			&SetCarriedItem{Slot: 8},
-			&SetCreativeModeSlot{Slot: 36, Stack: ItemStack{Count: 64, Item: 1, Components: []ItemComponent{{Type: 5, Data: []byte{1, 2}}}, Removed: []int32{7}}},
+			&SetCreativeModeSlot{Slot: 36, Stack: item.Stack{Count: 64, Item: 1, Components: []item.Component{{Type: 5, Data: []byte{1, 2}}}, Removed: []int32{7}}},
 			&SetCreativeModeSlot{Slot: 45},
 			&PickItemFromBlock{Pos: BlockPos{X: -7, Y: 80, Z: 12}, IncludeData: true},
 		},
@@ -84,13 +85,13 @@ func TestRoundTrip(t *testing.T) {
 			&BlockChangedAck{Sequence: 12},
 			&BlockUpdate{Pos: BlockPos{X: 1, Y: -64, Z: -1}, State: 9},
 			&ChunkBatchFinished{BatchSize: 9},
-			&ContainerSetContent{StateID: 3, Items: []ItemStack{{}, {Count: 64, Item: 1, Removed: []int32{4}}, {}}},
-			&ContainerSetSlot{ContainerID: InventoryContainer, Slot: 36, Stack: ItemStack{Count: 1, Item: 2}},
+			&ContainerSetContent{StateID: 3, Items: []item.Stack{{}, {Count: 64, Item: 1, Removed: []int32{4}}, {}}},
+			&ContainerSetSlot{ContainerID: InventoryContainer, Slot: 36, Stack: item.Stack{Count: 1, Item: 2}},
 			&Commands{Root: 0, Nodes: []CommandNode{
 				{Type: NodeRoot, Children: []int32{1}},
 				{Type: NodeLiteral, Name: "pregen", Restricted: true, Children: []int32{2, 3}},
-				{Type: NodeArgument, Name: "radius", Executable: true, Parser: ParserInteger, Min: 1, Max: math.MaxInt32},
-				{Type: NodeArgument, Name: "any", Executable: true, Parser: ParserInteger, Min: math.MinInt32, Max: 5},
+				{Type: NodeArgument, Name: "radius", Executable: true, Parser: ParserInteger, Properties: IntegerProperties(1, math.MaxInt32)},
+				{Type: NodeArgument, Name: "any", Executable: true, Parser: ParserInteger, Properties: IntegerProperties(math.MinInt32, 5)},
 			}},
 			&EntityPositionSync{EntityID: 9, X: 1, Y: 2, Z: 3, Yaw: 33.3, Pitch: -12, OnGround: true},
 			&ForgetLevelChunk{X: -5, Z: 12},
@@ -153,25 +154,24 @@ func TestRoundTrip(t *testing.T) {
 
 // Clients length-prefix each component value; the server sends them bare.
 func TestItemStackForms(t *testing.T) {
-	stack := ItemStack{Count: 2, Item: 300, Components: []ItemComponent{{Type: 13, Data: []byte{1, 9}}}, Removed: []int32{5}}
+	stack := item.Stack{Count: 2, Item: 300, Components: []item.Component{{Type: 13, Data: []byte{1, 9}}}, Removed: []int32{5}}
 
 	server := protocol.NewWriter()
-	stack.encode(server)
+	writeStack(server, stack)
 
 	if want := []byte{2, 0xAC, 0x02, 1, 1, 13, 1, 9, 5}; !reflect.DeepEqual(server.Bytes(), want) {
 		t.Errorf("server-sent stack encoded as %v, want %v", server.Bytes(), want)
 	}
 
 	client := protocol.NewWriter()
-	stack.encodeDelimited(client)
+	writeDelimitedStack(client, stack)
 
 	if want := []byte{2, 0xAC, 0x02, 1, 1, 13, 2, 1, 9, 5}; !reflect.DeepEqual(client.Bytes(), want) {
 		t.Errorf("client-sent stack encoded as %v, want %v", client.Bytes(), want)
 	}
 
-	var decoded ItemStack
 	r := protocol.NewReader(server.Bytes())
-	decoded.decode(r)
+	readStack(r)
 
 	if r.Err() == nil {
 		t.Error("decoding a server-sent stack with components succeeded")

@@ -28,6 +28,12 @@ type PlayerAction struct {
 	Sequence int32
 }
 
+// IsDigging reports whether the action is part of destroying a block: starting,
+// changing direction, aborting or finishing.
+func (p *PlayerAction) IsDigging() bool {
+	return p.Action <= ActionStopDestroyBlock
+}
+
 func (p *PlayerAction) Encode(w *protocol.Writer) {
 	w.VarInt(p.Action)
 	p.Pos.encode(w)

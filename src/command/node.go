@@ -6,21 +6,20 @@ package command
 // Node is a literal word or an argument in a command tree.
 type Node struct {
 	name     string
-	literal  bool
-	min, max int32
+	arg      Argument
 	run      func(ctx *Context)
 	children []*Node
 }
 
 // Literal returns a node matching the exact word name.
 func Literal(name string, children ...*Node) *Node {
-	return &Node{name: name, literal: true, children: children}
+	return &Node{name: name, children: children}
 }
 
-// Integer returns an argument node accepting whole numbers in [min, max],
-// readable from the context under name.
-func Integer(name string, min, max int32, children ...*Node) *Node {
-	return &Node{name: name, min: min, max: max, children: children}
+// Arg returns a node parsed by arg, whose value is stored in the context under
+// name.
+func Arg(name string, arg Argument, children ...*Node) *Node {
+	return &Node{name: name, arg: arg, children: children}
 }
 
 // Executes makes the command valid when it ends at this node.
@@ -28,4 +27,8 @@ func (n *Node) Executes(run func(ctx *Context)) *Node {
 	n.run = run
 
 	return n
+}
+
+func (n *Node) isLiteral() bool {
+	return n.arg == nil
 }

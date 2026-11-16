@@ -109,3 +109,27 @@ func TestPickItem(t *testing.T) {
 		}
 	}
 }
+
+// Each hook comes from the first matching behavior that defines it, and
+// blocks without one use the default.
+func TestBehaviorResolution(t *testing.T) {
+	saved := behaviors
+	defer func() {
+		behaviors = saved
+		resolveHooks()
+	}()
+
+	behaviors = []behavior{
+		{match: named("stone"), pickItem: func(*Block, StateID) string { return "first" }},
+		{match: named("stone", "dirt"), pickItem: func(*Block, StateID) string { return "second" }},
+	}
+	resolveHooks()
+
+	cases := map[string]string{"stone": "first", "dirt": "second", "oak_planks": "minecraft:oak_planks"}
+
+	for name, want := range cases {
+		if got, _ := PickItem(MustParse(name)); got != want {
+			t.Errorf("%s picks as %q, want %q", name, got, want)
+		}
+	}
+}

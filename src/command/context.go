@@ -14,10 +14,10 @@ type Source interface {
 // Context is a parsed command being executed.
 type Context struct {
 	Source Source
-	ints   map[string]int32
+	values map[string]any
 }
 
 // Int returns the value of the integer argument called name.
 func (c *Context) Int(name string) int32 {
-	return c.ints[name]
+	return c.values[name].(int32)
 }

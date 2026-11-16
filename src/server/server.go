@@ -19,6 +19,7 @@ import (
 	"main/src/block"
 	"main/src/command"
 	"main/src/config"
+	"main/src/entity"
 	"main/src/packet"
 	"main/src/storage"
 	"main/src/text"
@@ -45,6 +46,9 @@ type Server struct {
 	sessions   *auth.SessionClient
 	sessionID  uuid.UUID
 
+	router   router
+	ticks    scheduler
+	entities *entity.Tracker
 	commands command.Dispatcher
 	pregenMu sync.Mutex
 	pregen   *pregenJob
@@ -129,12 +133,13 @@ func New(conf *config.Config, log *slog.Logger) (*Server, error) {
 		quit:       make(chan struct{}),
 		players:    make(map[uuid.UUID]*Player),
 		conns:      make(map[*session]struct{}),
+		entities:   entity.NewTracker(),
 	}
 
 	s.gameTime.Store(level.GameTime)
 	s.world.BlockChanged = s.broadcastBlockChange
 	s.spawn = s.findSpawn()
-	s.registerCommands()
+	s.registerFeatures()
 
 	if conf.OnlineMode {
 		if s.keys, err = auth.GenerateKeyPair(); err != nil {
@@ -144,6 +149,27 @@ func New(conf *config.Config, log *slog.Logger) (*Server, error) {
 	}
 
 	return s, nil
+}
+
+// registerFeatures lets every feature register its packet handlers, join
+// steps, scheduled tasks and commands. Join steps and tasks run in this order.
+func (s *Server) registerFeatures() {
+	for _, register := range []func(){
+		s.registerCommands,
+		s.registerInventory,
+		s.registerMovement,
+		s.registerGameTime,
+		s.registerEntityTracking,
+		s.registerKeepAlive,
+		s.registerTabList,
+		s.registerClientInformation,
+		s.registerChunkStreaming,
+		s.registerBuilding,
+		s.registerPregen,
+		s.registerAutosave,
+	} {
+		register()
+	}
 }
 
 // hashSeed obfuscates the world seed for the client, which only uses it to
@@ -291,9 +317,22 @@ func (s *Server) onlinePlayers() []*Player {
 	return out
 }
 
+// viewers returns the joined players whose view includes a chunk.
+func (s *Server) viewers(chunk world.ChunkPos) []*Player {
+	var out []*Player
+
+	for _, p := range s.joinedPlayers() {
+		if snap := p.snapshot(); world.InView(snap.chunkPos(), snap.ViewDistance, chunk) {
+			out = append(out, p)
+		}
+	}
+
+	return out
+}
+
 // broadcast sends a packet to every player in the world.
 func (s *Server) broadcast(p packet.Packet) {
 	for _, player := range s.onlinePlayers() {
-		player.send(p)
+		player.Send(p)
 	}
 }
