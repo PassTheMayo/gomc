@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 
@@ -53,12 +54,21 @@ type statusResponse struct {
 		Sample []statusPlayer `json:"sample,omitempty"`
 	} `json:"players"`
 	Description        text.Component `json:"description"`
+	Favicon            string         `json:"favicon,omitempty"`
 	EnforcesSecureChat bool           `json:"enforcesSecureChat"`
 }
 
 type statusPlayer struct {
 	Name string `json:"name"`
 	ID   string `json:"id"`
+}
+
+// registerServerData sends joining players the server's description and icon,
+// so the client's server list stays current.
+func (s *Server) registerServerData() {
+	s.router.onJoin(func(p *Player) {
+		p.Send(&packet.ServerData{Motd: text.Text(s.conf.Motd), Icon: s.favicon})
+	})
 }
 
 // maxStatusSample is how many player names the server list shows.
@@ -90,6 +100,10 @@ func (s *Server) statusJSON() string {
 	res.Version.Protocol = version.Protocol
 	res.Players.Max = s.conf.MaxPlayers
 	res.Description = text.Text(s.conf.Motd)
+
+	if s.favicon != nil {
+		res.Favicon = "data:image/png;base64," + base64.StdEncoding.EncodeToString(s.favicon)
+	}
 
 	for _, p := range s.onlinePlayers() {
 		res.Players.Online++

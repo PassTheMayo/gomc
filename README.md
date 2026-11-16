@@ -58,13 +58,30 @@ Edit `config.yml` to change how the server works:
 | `simulation_distance` | `10` | Simulation distance shown to players (2–32) |
 | `game_mode` | `creative` | `survival`, `creative`, `adventure` or `spectator` |
 | `operators` | none | Players who can use operator commands |
+| `server_links` | none | Links in the pause menu, each with a `label` and a `url` (see below) |
 | `world.directory` | `world` | Folder the world is saved in |
 | `world.seed` | `0` | World seed; `0` picks a random one |
 | `world.generator` | `terrain` | `terrain` for normal worlds or `flat` for superflat |
 
 The seed and generator only apply when a world is first created. To change them, use a new `world.directory` or delete the old world folder.
 
-Any setting can also be set with an environment variable of the same name in capitals, such as `PORT=25566`. For nested settings, join the parts with `_`, as in `WORLD_SEED`. List operators separated by commas: `OPERATORS=Alice,Bob`.
+Any setting can also be set with an environment variable of the same name in capitals, such as `PORT=25566`. For nested settings, join the parts with `_`, as in `WORLD_SEED`. List operators separated by commas: `OPERATORS=Alice,Bob`. Server links are `label=url` pairs separated by commas: `SERVER_LINKS=website=https://example.com,report_bug=https://example.com/issues`.
+
+### Server Links
+
+Server links appear under **Server Links** in the pause menu. A link's label can be one of Minecraft's built-in names, which players see translated into their own language: `report_bug`, `community_guidelines`, `support`, `status`, `feedback`, `community`, `website`, `forums`, `news` or `announcements`. Any other label is shown as written. Links must start with `http://` or `https://`.
+
+```yaml
+server_links:
+  - label: website
+    url: https://example.com
+  - label: Live map
+    url: https://example.com/map
+```
+
+### Server Icon
+
+To show an icon in the server list, put a 64×64 PNG named `server-icon.png` next to `config.yml`. Without one, the server uses the world's `icon.png` if it has one.
 
 > [!WARNING]
 > With `online_mode` off, anyone can join under any name, including an operator's.

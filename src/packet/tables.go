@@ -49,6 +49,7 @@ var (
 		0x0D: (*UpdateEnabledFeatures)(nil),
 		0x0E: (*UpdateTags)(nil),
 		0x0F: (*SelectKnownPacks)(nil),
+		0x11: (*ServerLinks)(nil),
 	})
 
 	PlayServerbound = newTable("play/serverbound", map[int32]Packet{
@@ -97,6 +98,7 @@ var (
 		0x49: (*PlayerPosition)(nil),
 		0x4E: (*RemoveEntities)(nil),
 		0x55: (*RotateHead)(nil),
+		0x58: (*ServerData)(nil),
 		0x60: (*SetChunkCacheCenter)(nil),
 		0x63: (*SetDefaultSpawnPosition)(nil),
 		0x65: (*SetEntityData)(nil),

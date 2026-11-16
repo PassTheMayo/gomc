@@ -57,6 +57,10 @@ func TestRoundTrip(t *testing.T) {
 				{ID: "minecraft:overworld"},
 				{ID: "minecraft:custom", Data: nbt.Compound{{Name: "height", Value: nbt.Int(384)}}},
 			}},
+			&ServerLinks{Links: []ServerLink{
+				{Type: LinkWebsite, URL: "https://example.com"},
+				{Type: LinkCustom, Label: text.Text("Map"), URL: "https://example.com/map"},
+			}},
 			&UpdateEnabledFeatures{Features: []string{"minecraft:vanilla"}},
 			&UpdateTags{Tags: map[string][]registry.Tag{"minecraft:fluid": {{Name: "minecraft:water", Entries: []int32{1, 2}}}}},
 		},
@@ -125,6 +129,8 @@ func TestRoundTrip(t *testing.T) {
 			&PlayerPosition{TeleportID: 1, X: 1, Y: 2, Z: 3, VX: 0.5, Yaw: 180, Pitch: 0, Relative: 1 << 3},
 			&RemoveEntities{EntityIDs: []int32{1, 2, 3}},
 			&RotateHead{EntityID: 9, HeadYaw: 90},
+			&ServerData{Motd: text.Text("Hello"), Icon: []byte{0x89, 'P', 'N', 'G'}},
+			&ServerData{Motd: text.Text("No icon")},
 			&SetChunkCacheCenter{X: -1, Z: 7},
 			&SetDefaultSpawnPosition{Spawn: GlobalPos{Dimension: "minecraft:overworld", X: 0, Y: 70, Z: 0}, Yaw: 90},
 			&SetEntityData{EntityID: 9, Values: []EntityDataValue{

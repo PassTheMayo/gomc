@@ -75,3 +75,63 @@ func (p *ClientInformation) Decode(r *protocol.Reader) {
 	p.AllowsListing = r.Bool()
 	p.ParticleStatus = r.VarInt()
 }
+
+// Built-in server link types, which the client labels in its own language.
+const (
+	LinkReportBug int32 = iota
+	LinkCommunityGuidelines
+	LinkSupport
+	LinkStatus
+	LinkFeedback
+	LinkCommunity
+	LinkWebsite
+	LinkForums
+	LinkNews
+	LinkAnnouncements
+
+	// LinkCustom marks a link labeled with its own text.
+	LinkCustom int32 = -1
+)
+
+// ServerLink is a link in the pause menu. Type is a built-in link type, or
+// LinkCustom to show Label instead.
+type ServerLink struct {
+	Type  int32
+	Label text.Component
+	URL   string
+}
+
+// ServerLinks sends the links shown in the pause menu.
+type ServerLinks struct {
+	Links []ServerLink
+}
+
+func (p *ServerLinks) Encode(w *protocol.Writer) {
+	protocol.WriteList(w, p.Links, func(l ServerLink) {
+		w.Bool(l.Type != LinkCustom)
+
+		if l.Type != LinkCustom {
+			w.VarInt(l.Type)
+		} else {
+			writeComponent(w, l.Label)
+		}
+
+		w.String(l.URL)
+	})
+}
+
+func (p *ServerLinks) Decode(r *protocol.Reader) {
+	p.Links = protocol.ReadList(r, r.Remaining(), func() ServerLink {
+		l := ServerLink{Type: LinkCustom}
+
+		if r.Bool() {
+			l.Type = r.VarInt()
+		} else {
+			l.Label = readComponent(r)
+		}
+
+		l.URL = r.String(32767)
+
+		return l
+	})
+}

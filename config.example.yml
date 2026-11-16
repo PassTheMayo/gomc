@@ -8,6 +8,7 @@ view_distance: 10
 simulation_distance: 10
 game_mode: creative
 operators: []
+server_links: []
 world:
   directory: world
   seed: 0

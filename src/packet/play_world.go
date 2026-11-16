@@ -3,6 +3,7 @@ package packet
 import (
 	"main/src/nbt"
 	"main/src/protocol"
+	"main/src/text"
 )
 
 // Game modes.
@@ -338,4 +339,28 @@ func (p *SetChunkCacheCenter) Encode(w *protocol.Writer) {
 func (p *SetChunkCacheCenter) Decode(r *protocol.Reader) {
 	p.X = r.VarInt()
 	p.Z = r.VarInt()
+}
+
+// ServerData updates the server's description and icon in the client's
+// server list while it plays.
+type ServerData struct {
+	Motd text.Component
+	Icon []byte
+}
+
+func (p *ServerData) Encode(w *protocol.Writer) {
+	writeComponent(w, p.Motd)
+	w.Bool(p.Icon != nil)
+
+	if p.Icon != nil {
+		w.ByteArray(p.Icon)
+	}
+}
+
+func (p *ServerData) Decode(r *protocol.Reader) {
+	p.Motd = readComponent(r)
+
+	if r.Bool() {
+		p.Icon = r.ByteArray(r.Remaining())
+	}
 }

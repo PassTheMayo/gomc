@@ -16,10 +16,10 @@ Everything a server needs to match vanilla Minecraft: Java Edition, grouped by a
 - [ ] **Packet rate limiting**: kicks clients that flood packets
 - [ ] **Play-phase reconfiguration**: sends players back to the configuration phase
 - [x] **Read timeouts**: drops connections that stop sending
-- [ ] **Server links**: links shown in the pause menu
-- [ ] **Server list favicon**: `server-icon.png` sent in the status response
+- [x] **Server links**: configurable links in the pause menu
+- [x] **Server list favicon**: `server-icon.png`, or the world's icon, in the server list and refreshed on join
 - [x] **Server list ping**: answers ping requests with a pong
-- [ ] **Server list player sample**: names of some online players on hover
+- [x] **Server list player sample**: names of up to 12 online players on hover
 - [x] **Server list status**: MOTD, version, online and maximum player counts
 - [x] **Transfer intent**: accepts connections that were transferred from another server
 - [ ] **Transfer packet**: sends players to another server

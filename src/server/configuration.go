@@ -52,6 +52,11 @@ func (s *session) configure() bool {
 	brand.String(Brand)
 
 	s.send(&packet.CustomPayload{Channel: "minecraft:brand", Data: brand.Bytes()})
+
+	if len(s.srv.links) > 0 {
+		s.send(&packet.ServerLinks{Links: s.srv.links})
+	}
+
 	s.send(&packet.UpdateEnabledFeatures{Features: []string{"minecraft:vanilla"}})
 	s.send(&packet.SelectKnownPacks{Packs: []packet.KnownPack{corePack}})
 

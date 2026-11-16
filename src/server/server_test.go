@@ -1,9 +1,11 @@
 package server
 
 import (
+	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -96,6 +98,7 @@ type testClient struct {
 	pos        [3]float64
 	entityID   int32
 	teleported bool
+	links      *packet.ServerLinks
 }
 
 func dial(t *testing.T, addr string) *testClient {
@@ -227,6 +230,8 @@ func (c *testClient) configure() *packet.Login {
 			c.send(&packet.SelectKnownPacks{Packs: p.Packs})
 		case *packet.RegistryData:
 			registries++
+		case *packet.ServerLinks:
+			c.links = p
 		case *packet.UpdateTags:
 			tags = p
 		case *packet.FinishConfiguration:
@@ -927,5 +932,42 @@ func TestArmSwingAndSwapHands(t *testing.T) {
 		if got := waitFor[*packet.ContainerSetSlot](a, nil); !reflect.DeepEqual(*got, want) {
 			t.Fatalf("swapping hands sent %+v, want %+v", *got, want)
 		}
+	}
+}
+
+// The world's icon shows in the server list and is sent on join, and the
+// configured links reach the client during configuration.
+func TestServerIconAndLinks(t *testing.T) {
+	dir := t.TempDir()
+	icon := writePNG(t, filepath.Join(dir, "icon.png"), faviconSize)
+	conf := testConfig(dir)
+	conf.ServerLinks = []config.ServerLink{{Label: "website", URL: "https://example.com"}}
+	_, addr := startServer(t, conf)
+
+	c := dial(t, addr)
+	c.handshake(packet.IntentStatus, version.Protocol)
+	c.send(&packet.StatusRequest{})
+
+	var status struct {
+		Favicon string `json:"favicon"`
+	}
+
+	if err := json.Unmarshal([]byte(waitFor[*packet.StatusResponse](c, nil).JSON), &status); err != nil {
+		t.Fatal(err)
+	}
+
+	if want := "data:image/png;base64," + base64.StdEncoding.EncodeToString(icon); status.Favicon != want {
+		t.Fatalf("status favicon is %.40q…", status.Favicon)
+	}
+
+	a := dial(t, addr)
+	a.login("Alice")
+
+	if want := []packet.ServerLink{{Type: packet.LinkWebsite, URL: "https://example.com"}}; a.links == nil || !reflect.DeepEqual(a.links.Links, want) {
+		t.Fatalf("configuration sent links %+v", a.links)
+	}
+
+	if data := waitFor[*packet.ServerData](a, nil); data.Motd.Text != "Test server" || !bytes.Equal(data.Icon, icon) {
+		t.Fatalf("server data was %q with a %d byte icon", data.Motd.Text, len(data.Icon))
 	}
 }

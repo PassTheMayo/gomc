@@ -42,6 +42,8 @@ type Server struct {
 	gameMode   int32
 	spawn      storage.PlayerData
 	hashedSeed int64
+	favicon    []byte
+	links      []packet.ServerLink
 	keys       *auth.KeyPair
 	sessions   *auth.SessionClient
 	sessionID  uuid.UUID
@@ -120,6 +122,20 @@ func New(conf *config.Config, log *slog.Logger) (*Server, error) {
 		return nil, err
 	}
 
+	links, err := serverLinks(conf.ServerLinks)
+
+	if err != nil {
+		store.Close()
+		return nil, err
+	}
+
+	// Like vanilla, a broken icon is logged rather than stopping the server.
+	favicon, err := loadFavicon(conf.World.Directory)
+
+	if err != nil {
+		log.Error("Couldn't load the server icon", "error", err)
+	}
+
 	s := &Server{
 		conf:       conf,
 		log:        log,
@@ -128,6 +144,8 @@ func New(conf *config.Config, log *slog.Logger) (*Server, error) {
 		level:      level,
 		gameMode:   gameMode,
 		hashedSeed: hashSeed(level.Seed),
+		favicon:    favicon,
+		links:      links,
 		sessions:   auth.NewSessionClient(),
 		sessionID:  uuid.New(),
 		quit:       make(chan struct{}),
@@ -162,6 +180,7 @@ func (s *Server) registerFeatures() {
 		s.registerEntityTracking,
 		s.registerKeepAlive,
 		s.registerTabList,
+		s.registerServerData,
 		s.registerClientInformation,
 		s.registerChunkStreaming,
 		s.registerBuilding,

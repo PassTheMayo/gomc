@@ -13,21 +13,29 @@ func New() *Config {
 }
 
 type Config struct {
-	Host                 string   `yaml:"host"`
-	Port                 uint16   `yaml:"port"`
-	Motd                 string   `yaml:"motd"`
-	MaxPlayers           int      `yaml:"max_players"`
-	OnlineMode           bool     `yaml:"online_mode"`
-	CompressionThreshold int      `yaml:"compression_threshold"`
-	ViewDistance         int      `yaml:"view_distance"`
-	SimulationDistance   int      `yaml:"simulation_distance"`
-	GameMode             string   `yaml:"game_mode"`
-	Operators            []string `yaml:"operators"`
+	Host                 string       `yaml:"host"`
+	Port                 uint16       `yaml:"port"`
+	Motd                 string       `yaml:"motd"`
+	MaxPlayers           int          `yaml:"max_players"`
+	OnlineMode           bool         `yaml:"online_mode"`
+	CompressionThreshold int          `yaml:"compression_threshold"`
+	ViewDistance         int          `yaml:"view_distance"`
+	SimulationDistance   int          `yaml:"simulation_distance"`
+	GameMode             string       `yaml:"game_mode"`
+	Operators            []string     `yaml:"operators"`
+	ServerLinks          []ServerLink `yaml:"server_links"`
 	World                struct {
 		Directory string `yaml:"directory"`
 		Seed      int64  `yaml:"seed"`
 		Generator string `yaml:"generator"`
 	} `yaml:"world"`
+}
+
+// ServerLink is a link shown in the pause menu. Label is a built-in link type,
+// such as website or report_bug, or text shown as it is.
+type ServerLink struct {
+	Label string `yaml:"label"`
+	URL   string `yaml:"url"`
 }
 
 func (c *Config) ReadFile(file string) error {
@@ -87,6 +95,10 @@ func (c *Config) readEnvVars() {
 		c.Operators = strings.Split(v, ",")
 	}
 
+	if v := os.Getenv("SERVER_LINKS"); len(v) > 0 {
+		c.ServerLinks = parseServerLinks(v)
+	}
+
 	if v := os.Getenv("WORLD_DIRECTORY"); len(v) > 0 {
 		c.World.Directory = v
 	}
@@ -98,6 +110,23 @@ func (c *Config) readEnvVars() {
 	if v := os.Getenv("WORLD_GENERATOR"); len(v) > 0 {
 		c.World.Generator = v
 	}
+}
+
+// parseServerLinks reads comma separated label=url pairs.
+func parseServerLinks(v string) []ServerLink {
+	var links []ServerLink
+
+	for _, pair := range strings.Split(v, ",") {
+		label, url, ok := strings.Cut(pair, "=")
+
+		if !ok {
+			panic("config: SERVER_LINKS entries must be label=url")
+		}
+
+		links = append(links, ServerLink{Label: strings.TrimSpace(label), URL: strings.TrimSpace(url)})
+	}
+
+	return links
 }
 
 func parsePort(v string) uint16 {
