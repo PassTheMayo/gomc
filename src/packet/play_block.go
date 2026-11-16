@@ -17,6 +17,7 @@ const (
 	ActionStopDestroyBlock  int32 = 3
 	ActionDropAllItems      int32 = 4
 	ActionDropItem          int32 = 5
+	ActionSwapWithOffHand   int32 = 7
 )
 
 // PlayerAction reports digging and a few other actions. Sequence numbers the

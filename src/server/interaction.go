@@ -106,7 +106,7 @@ func removedState(s block.StateID) block.StateID {
 }
 
 // handleUseItemOn places the block item held in the used hand against the
-// clicked face.
+// clicked face, swinging the player's arm for everyone else.
 func (s *Server) handleUseItemOn(p *Player, pk *packet.UseItemOn) {
 	defer p.Send(&packet.BlockChangedAck{Sequence: pk.Sequence})
 
@@ -114,13 +114,13 @@ func (s *Server) handleUseItemOn(p *Player, pk *packet.UseItemOn) {
 		return
 	}
 
-	item := p.heldItem(pk.Hand)
+	held := p.heldStack(pk.Hand)
 
-	if item == 0 || int(item) >= len(itemRegistry.Entries) {
+	if held.IsEmpty() || int(held.Item) >= len(itemRegistry.Entries) {
 		return
 	}
 
-	b, isBlock := block.ForItem(itemRegistry.Entries[item])
+	b, isBlock := block.ForItem(itemRegistry.Entries[held.Item])
 	clicked, loaded := s.world.Block(int(pk.Pos.X), int(pk.Pos.Y), int(pk.Pos.Z))
 
 	if !isBlock || !loaded {
@@ -157,6 +157,8 @@ func (s *Server) handleUseItemOn(p *Player, pk *packet.UseItemOn) {
 	for _, pl := range placements {
 		s.world.SetBlock(int(target.X)+pl.DX, int(target.Y)+pl.DY, int(target.Z)+pl.DZ, pl.State)
 	}
+
+	s.swingArm(p, pk.Hand, held.InteractAnimation())
 }
 
 // canPlaceAt reports whether state may be placed at pos: inside the world, in

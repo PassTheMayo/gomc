@@ -891,3 +891,41 @@ func TestInvalidMovementKick(t *testing.T) {
 		t.Fatalf("disconnected with %+v", kick.Reason)
 	}
 }
+
+func TestArmSwingAndSwapHands(t *testing.T) {
+	_, addr := startServer(t, testConfig(t.TempDir()))
+	stone := registry.MustGet(registry.Item).MustID("minecraft:stone")
+
+	a := dial(t, addr)
+	alice := a.login("Alice").EntityID
+	waitFor[*packet.PlayerPosition](a, nil)
+	x, z := a.waitForNearbyChunks()
+
+	b := dial(t, addr)
+	b.login("Bob")
+	waitFor[*packet.AddEntity](b, func(p *packet.AddEntity) bool { return p.EntityID == alice })
+
+	isAliceSwing := func(p *packet.SwingAnimation) bool { return p.EntityID == alice }
+
+	// Bob sees Alice swing when she places a block and when she punches.
+	a.send(&packet.SetCreativeModeSlot{Slot: 36, Stack: item.Of(stone, 64)})
+	a.placeOnGround(0, x+2, z, 1)
+
+	if swing := waitFor[*packet.SwingAnimation](b, isAliceSwing); swing.Hand != packet.HandMain || swing.Animation != item.DefaultSwing {
+		t.Fatalf("placing showed %+v", swing)
+	}
+
+	// A new swing starts once the last one is past halfway.
+	time.Sleep(4 * tickDuration)
+	a.send(&packet.Punch{})
+	waitFor[*packet.SwingAnimation](b, isAliceSwing)
+
+	// The swap key moves the stone to Alice's off hand.
+	a.send(&packet.PlayerAction{Action: packet.ActionSwapWithOffHand})
+
+	for _, want := range []packet.ContainerSetSlot{{Slot: 36}, {Slot: 45, Stack: item.Of(stone, 64)}} {
+		if got := waitFor[*packet.ContainerSetSlot](a, nil); !reflect.DeepEqual(*got, want) {
+			t.Fatalf("swapping hands sent %+v, want %+v", *got, want)
+		}
+	}
+}

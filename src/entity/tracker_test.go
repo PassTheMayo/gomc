@@ -84,3 +84,27 @@ func TestTracker(t *testing.T) {
 		t.Fatalf("leaving the view sent %#v", sent[0])
 	}
 }
+
+func TestSendToViewers(t *testing.T) {
+	near := &fakeEntity{id: 1, state: State{X: 8, Z: 8}}
+	far := &fakeEntity{id: 3, state: State{X: 1000, Z: 1000}}
+	v := &fakeViewer{id: 2}
+	tr := NewTracker()
+	tr.Update([]Entity{near, far}, []Viewer{v})
+	v.take()
+
+	tr.SendToViewers(near.id, &packet.SwingAnimation{EntityID: near.id})
+	tr.SendToViewers(far.id, &packet.SwingAnimation{EntityID: far.id})
+
+	if sent := v.take(); len(sent) != 1 || sent[0].(*packet.SwingAnimation).EntityID != near.id {
+		t.Fatalf("viewers were sent %#v, want only the visible entity's packet", sent)
+	}
+
+	// Viewers that are gone receive nothing.
+	tr.Update([]Entity{near}, nil)
+	tr.SendToViewers(near.id, &packet.SwingAnimation{EntityID: near.id})
+
+	if sent := v.take(); sent != nil {
+		t.Fatalf("a viewer that left was sent %#v", sent)
+	}
+}

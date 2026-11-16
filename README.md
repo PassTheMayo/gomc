@@ -9,11 +9,11 @@ A Minecraft: Java Edition server for **Minecraft 26.3**, written from scratch in
 
 - **Join with your Minecraft account.** Accounts are verified with Mojang like on any official server, and everyone sees each other's skins.
 - **Explore a generated world** with oceans, beaches, hills, mountains, forests, deserts and snowy biomes across 20 biome types. A classic superflat world is also available.
-- **Play with friends.** You can see other players walk, turn, sneak and sprint, and they show up in the tab list.
+- **Play with friends.** You can see other players walk, turn, sneak, sprint and swing their arms, and they show up in the tab list.
 - **Build.** Place and break blocks. Stairs, logs, doors, beds, torches, signs and other blocks face the way you'd expect. Everyone nearby sees your changes.
 - **Use the creative inventory.** Your inventory, including enchanted and renamed items, is saved between sessions, along with your selected hotbar slot.
 - **Middle-click to pick blocks**, just like vanilla.
-- **Drop items** with the drop key.
+- **Drop items** with the drop key, and swap items to your off hand with the swap key.
 - **Come back later.** The world, your position and your inventory are saved automatically every five minutes and when the server stops.
 
 ## What Doesn't Work Yet

@@ -88,3 +88,17 @@ func TestSaveAndLoad(t *testing.T) {
 		t.Fatalf("loaded %+v, want %+v", loaded.slots, p.slots)
 	}
 }
+
+func TestSwapHands(t *testing.T) {
+	p := NewPlayer()
+	p.Select(2)
+	p.slots.Set(2, item.Of(1, 64))
+
+	if changed := p.SwapHands(); !slices.Equal(changed, []int{38, 45}) {
+		t.Fatalf("swapping changed %v", changed)
+	}
+
+	if !p.MainHand().IsEmpty() || !reflect.DeepEqual(p.OffHand(), item.Of(1, 64)) {
+		t.Fatalf("after swapping the hands hold %+v and %+v", p.MainHand(), p.OffHand())
+	}
+}

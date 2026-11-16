@@ -1,6 +1,10 @@
 package item
 
-import "testing"
+import (
+	"testing"
+
+	"main/src/registry"
+)
 
 func TestSameItemSameComponents(t *testing.T) {
 	sword := Stack{Count: 1, Item: 5, Components: []Component{{Type: 1, Data: []byte{1}}, {Type: 2, Data: []byte{2}}}}
@@ -32,5 +36,27 @@ func TestIsEnchanted(t *testing.T) {
 
 	if (Stack{Count: 1, Components: []Component{{Type: enchantments, Data: []byte{0}}}}).IsEnchanted() {
 		t.Error("a stack with an empty enchantments component is enchanted")
+	}
+}
+
+func TestSwingAnimations(t *testing.T) {
+	items := registry.MustGet(registry.Item)
+	spear := Of(items.MustID("minecraft:iron_spear"), 1)
+	custom := Stack{Count: 1, Item: 1, Components: []Component{{Type: attackAnimation, Data: []byte{byte(SwingStab), 30}}}}
+
+	cases := []struct {
+		got, want SwingAnimation
+	}{
+		{Of(1, 1).AttackAnimation(), DefaultSwing},
+		{spear.AttackAnimation(), SwingAnimation{Type: SwingStab, Duration: 19}},
+		{spear.InteractAnimation(), DefaultSwing},
+		{custom.AttackAnimation(), SwingAnimation{Type: SwingStab, Duration: 30}},
+		{Stack{Count: 1, Item: spear.Item, Removed: []int32{attackAnimation}}.AttackAnimation(), DefaultSwing},
+	}
+
+	for i, c := range cases {
+		if c.got != c.want {
+			t.Errorf("case %d: got %+v, want %+v", i, c.got, c.want)
+		}
 	}
 }

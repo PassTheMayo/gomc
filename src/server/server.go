@@ -165,6 +165,7 @@ func (s *Server) registerFeatures() {
 		s.registerClientInformation,
 		s.registerChunkStreaming,
 		s.registerBuilding,
+		s.registerArmSwing,
 		s.registerPregen,
 		s.registerAutosave,
 	} {

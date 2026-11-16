@@ -67,6 +67,7 @@ var (
 		0x2A: (*PlayerCommand)(nil),
 		0x2B: (*PlayerInput)(nil),
 		0x2C: (*PlayerLoaded)(nil),
+		0x2E: (*Punch)(nil),
 		0x36: (*SetCarriedItem)(nil),
 		0x39: (*SetCreativeModeSlot)(nil),
 		0x42: (*UseItemOn)(nil),
@@ -101,6 +102,7 @@ var (
 		0x65: (*SetEntityData)(nil),
 		0x6B: (*SetHeldSlot)(nil),
 		0x73: (*SetTime)(nil),
+		0x7B: (*SwingAnimation)(nil),
 		0x7C: (*SystemChat)(nil),
 	})
 )

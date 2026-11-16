@@ -229,7 +229,8 @@ Everything a server needs to match vanilla Minecraft: Java Edition, grouped by a
 
 ## Entities
 
-- [ ] **Animations**: arm swings, damage tilt, critical hits and other entity events
+- [ ] **Animations**: damage tilt, critical hits and other entity events
+- [x] **Arm swings**: other players see swings when a player punches, mines or places blocks, with spears stabbing
 - [ ] **Attributes**: health, speed, attack damage, scale and other attributes with modifiers
 - [ ] **Decorations**: armor stands, item frames, paintings, leash knots and end crystals
 - [ ] **Display entities**: block, item and text displays, and interaction entities
@@ -300,7 +301,7 @@ Everything a server needs to match vanilla Minecraft: Java Edition, grouped by a
 - [x] **Inventory sync on join**: the saved inventory is sent to the client
 - [ ] **Item drops**: dropped items appear in the world
 - [ ] **Item pickup**: collecting nearby items
-- [ ] **Off-hand swapping**: the swap key moves items between hands
+- [x] **Off-hand swapping**: the swap key moves items between hands
 - [x] **Picking blocks**: middle-click follows vanilla
   - [x] **Creative picking**: creative players get the item when they don't have it
   - [x] **Hotbar slot choice**: empty slots first, then slots without enchanted items

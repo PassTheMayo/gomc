@@ -19,7 +19,8 @@ const (
 var itemRegistry = registry.MustGet(registry.Item)
 
 // registerInventory tracks players' inventories and selected hotbar slots,
-// handles block picking and drops, and sends joining players their inventory.
+// handles block picking, drops and swapping hands, and sends joining players
+// their inventory.
 func (s *Server) registerInventory() {
 	r := &s.router
 
@@ -41,17 +42,43 @@ func (s *Server) registerInventory() {
 	on(r, func(p *Player, pk *packet.SetCreativeModeSlot) { p.setCreativeSlot(int(pk.Slot), pk.Stack) })
 	on(r, s.handlePickItemFromBlock)
 
-	// The client already removed what the player dropped. Items aren't
-	// dropped into the world.
 	on(r, func(p *Player, pk *packet.PlayerAction) {
-		if p.GameMode == packet.GameModeSpectator || (pk.Action != packet.ActionDropItem && pk.Action != packet.ActionDropAllItems) {
+		if p.GameMode == packet.GameModeSpectator {
 			return
 		}
 
-		p.mu.Lock()
-		p.inventory.DropSelected(pk.Action == packet.ActionDropAllItems)
-		p.mu.Unlock()
+		switch pk.Action {
+		// The client already removed what the player dropped. Items aren't
+		// dropped into the world.
+		case packet.ActionDropItem, packet.ActionDropAllItems:
+			p.mu.Lock()
+			p.inventory.DropSelected(pk.Action == packet.ActionDropAllItems)
+			p.mu.Unlock()
+		// The client waits for the server to swap its hands.
+		case packet.ActionSwapWithOffHand:
+			p.mu.Lock()
+			changed := p.inventory.SwapHands()
+			p.mu.Unlock()
+
+			p.sendSlots(changed)
+		}
 	})
+}
+
+// sendSlots sends the client the current stacks of inventory menu slots.
+func (p *Player) sendSlots(slots []int) {
+	p.mu.Lock()
+	menu := p.inventory.Menu()
+	p.mu.Unlock()
+
+	for _, slot := range slots {
+		p.Send(&packet.ContainerSetSlot{
+			ContainerID: packet.InventoryContainer,
+			StateID:     inventoryStateID,
+			Slot:        int16(slot),
+			Stack:       menu[slot],
+		})
+	}
 }
 
 // setCreativeSlot records a stack the player put in a menu slot from the
@@ -70,16 +97,16 @@ func (p *Player) setCreativeSlot(slot int, stack item.Stack) {
 	p.mu.Unlock()
 }
 
-// heldItem returns the item in a hand, or 0 for an empty hand.
-func (p *Player) heldItem(hand int32) int32 {
+// heldStack returns the stack in a hand.
+func (p *Player) heldStack(hand int32) item.Stack {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	if hand == packet.HandOff {
-		return p.inventory.OffHand().Item
+		return p.inventory.OffHand()
 	}
 
-	return p.inventory.MainHand().Item
+	return p.inventory.MainHand()
 }
 
 // handlePickItemFromBlock gives the player the item of the block it
@@ -110,20 +137,9 @@ func (s *Server) handlePickItemFromBlock(p *Player, pk *packet.PickItemFromBlock
 
 	p.mu.Lock()
 	changed := p.inventory.Pick(item.Of(id, 1), p.GameMode == packet.GameModeCreative)
-	updates := []packet.Packet{&packet.SetHeldSlot{Slot: int32(p.inventory.Selected())}}
-	menu := p.inventory.Menu()
+	held := p.inventory.Selected()
 	p.mu.Unlock()
 
-	for _, slot := range changed {
-		updates = append(updates, &packet.ContainerSetSlot{
-			ContainerID: packet.InventoryContainer,
-			StateID:     inventoryStateID,
-			Slot:        int16(slot),
-			Stack:       menu[slot],
-		})
-	}
-
-	for _, u := range updates {
-		p.Send(u)
-	}
+	p.Send(&packet.SetHeldSlot{Slot: int32(held)})
+	p.sendSlots(changed)
 }

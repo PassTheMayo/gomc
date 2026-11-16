@@ -5,6 +5,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"main/src/entity"
 	"main/src/inventory"
 	"main/src/packet"
 	"main/src/profile"
@@ -39,6 +40,7 @@ type Player struct {
 	keepAliveID      int64
 	keepAliveSent    time.Time
 	inventory        *inventory.Player
+	swing            entity.Swing
 }
 
 // snapshot is a consistent copy of the state other players can observe.

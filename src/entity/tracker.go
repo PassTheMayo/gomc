@@ -2,6 +2,7 @@ package entity
 
 import (
 	"math"
+	"sync"
 
 	"main/src/packet"
 	"main/src/protocol"
@@ -19,21 +20,43 @@ const (
 )
 
 // Tracker shows entities to the viewers whose view includes them, hides them
-// when they leave it, and relays their movement and metadata. It isn't safe
-// for concurrent use; the game loop calls Update once per tick.
+// when they leave it, and relays their movement and metadata. The game loop
+// calls Update once per tick; SendToViewers may be called at any time.
 type Tracker struct {
+	mu      sync.Mutex
 	sent    map[int32]*sentState
+	viewers map[int32]Viewer
 	visible map[int32]map[int32]bool
 }
 
 // NewTracker returns a tracker that shows nothing yet.
 func NewTracker() *Tracker {
-	return &Tracker{sent: make(map[int32]*sentState), visible: make(map[int32]map[int32]bool)}
+	return &Tracker{
+		sent:    make(map[int32]*sentState),
+		viewers: make(map[int32]Viewer),
+		visible: make(map[int32]map[int32]bool),
+	}
+}
+
+// SendToViewers sends a packet about an entity, such as an animation, to
+// every viewer it is currently shown to.
+func (t *Tracker) SendToViewers(id int32, pk packet.Packet) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	for viewer, visible := range t.visible {
+		if visible[id] {
+			t.viewers[viewer].Send(pk)
+		}
+	}
 }
 
 // Update brings every viewer up to date with the given entities. Entities and
 // viewers missing from a call are treated as gone.
 func (t *Tracker) Update(entities []Entity, viewers []Viewer) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
 	states := make(map[int32]State, len(entities))
 	updates := make(map[int32][]packet.Packet, len(entities))
 
@@ -59,11 +82,13 @@ func (t *Tracker) Update(entities []Entity, viewers []Viewer) {
 
 	for _, v := range viewers {
 		present[v.ID()] = true
+		t.viewers[v.ID()] = v
 		t.updateViewer(v, entities, states, updates)
 	}
 
-	for id := range t.visible {
+	for id := range t.viewers {
 		if !present[id] {
+			delete(t.viewers, id)
 			delete(t.visible, id)
 		}
 	}

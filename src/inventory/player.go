@@ -116,6 +116,14 @@ func (p *Player) Menu() []item.Stack {
 	return menu
 }
 
+// SwapHands exchanges the stacks in the main hand and the off hand and
+// returns the menu slots that changed.
+func (p *Player) SwapHands() []int {
+	p.slots.Swap(p.selected, offHandSlot)
+
+	return []int{MenuSlot(p.selected), MenuSlot(offHandSlot)}
+}
+
 // DropSelected removes the whole selected stack, or one of its items.
 func (p *Player) DropSelected(all bool) {
 	s := p.slots.Get(p.selected)
